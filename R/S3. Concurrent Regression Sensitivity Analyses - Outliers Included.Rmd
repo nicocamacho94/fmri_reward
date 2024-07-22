@@ -1,0 +1,211 @@
+---
+title: "S3. Regression Sensitivity Analyses - Outliers Included"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load packages
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(broom)
+library(sensemakr)
+library(lm.beta)
+library(lmtest)
+library(miceadds)
+```
+
+# Load dataset
+```{r, message = FALSE}
+base_data <- read_csv("final_dataset_share.csv") %>% 
+  filter(base_sample == 1) %>%
+  dplyr::select(., subj, fam_code, z_child_age_base, z_pfc_s_mean_base, z_bdi_mean_base, 
+                contains("avg") & contains("z_"), contains("RvN") & contains("z_"),
+                contains("dfbo") & contains("base"))
+```
+
+# Run regression analyses (covariates: child age and parent BDI-II; clusters: according to family code)
+
+## Restricted model that will be used across all analyses
+```{r}
+restrict_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                        cluster = "fam_code", data = base_data)
+summary(restrict_lm)
+```
+
+
+## Left Amygdala
+```{r}
+# run full model
+rln_lamyg_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_LAmyg, cluster = "fam_code", data = base_data)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_lamyg_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_LAmyg, data = base_data)
+# view results
+summary(rln_lamyg_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(rln_lamyg_lm, level = 0.90) # consider only upper limit for 95% confidence that estimate is < 0
+.07953 - .0587 # R^2 change
+glance(rln_lamyg_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Left Caudate
+```{r}
+# run full model
+rln_lcaud_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_LCaud, cluster = "fam_code", data = base_data)
+
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_lcaud_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_LCaud, data = base_data)
+
+# view results
+summary(rln_lcaud_lm)
+confint(rln_lcaud_lm, level = 0.95) # 95% CI
+.07162 - .0587 # R^2 change
+glance(rln_lcaud_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Right Caudate
+```{r}
+# run full model
+rln_rcaud_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_RCaud, cluster = "fam_code", data = base_data)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_rcaud_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_RCaud, data = base_data)
+# view results
+summary(rln_rcaud_lm) 
+confint(rln_rcaud_lm, level = 0.95) # 95% CI
+.07777 - .0587 # R^2 change
+glance(rln_rcaud_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Right mPFC
+```{r}
+# run full model
+rln_RmPFC_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2021_RmPFC, cluster = "fam_code", data = base_data)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_RmPFC_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2021_RmPFC, data = base_data)
+# view results
+summary(rln_RmPFC_lm) 
+confint(rln_RmPFC_lm, level = 0.95) # 95% CI
+.06656 - .0587 # R^2 change
+glance(rln_RmPFC_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+# Create plots
+
+## These plots include the outliers that were removed in the main analyses. Outliers are depicted in red.
+
+## Left Amygdala
+```{r, message = F}
+rln_lamyg_pfcs <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rln_lamyg_brn <- lm(z_avgRLvN_HO_LAmyg ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rln_lamyg_resid <- data.frame(base_data$subj, rln_lamyg_pfcs$residuals, rln_lamyg_brn$residuals,
+                              base_data$dfbo_rln_lamyg_base) %>% 
+  rename(pfcs_resid = rln_lamyg_pfcs.residuals, brn_resid = rln_lamyg_brn.residuals,
+         dfbo_rln_lamyg = base_data.dfbo_rln_lamyg_base) %>% 
+  mutate(dfbo_rln_lamyg_col = case_when(dfbo_rln_lamyg == 0 ~ "black",
+                                        dfbo_rln_lamyg == 1 ~ "red"))
+plot_rln_lamyg_lm <- rln_lamyg_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(color = factor(rln_lamyg_resid$dfbo_rln_lamyg_col)) +
+  geom_smooth(method = "lm") + 
+  xlab("Baseline RLvN (z-score residuals)") + ylab("Baseline PFC-S Scores (z-score residuals)") +
+  theme_classic() +
+  theme(legend.position = "none")
+plot_rln_lamyg_lm
+```
+
+## Left Caudate
+```{r, message = F}
+rn_lcaud_pfcs <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rn_lcaud_brn <- lm(z_RvN_2018_LCaud ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rn_lcaud_resid <- data.frame(rn_lcaud_pfcs$residuals, rn_lcaud_brn$residuals,
+                              base_data$dfbo_rn_lcaud_base) %>% 
+  rename(pfcs_resid = rn_lcaud_pfcs.residuals, brn_resid = rn_lcaud_brn.residuals,
+         dfbo_rn_lcaud = base_data.dfbo_rn_lcaud_base) %>% 
+  mutate(dfbo_rn_lcaud_col = case_when(dfbo_rn_lcaud == 0 ~ "black",
+                                       dfbo_rn_lcaud == 1 ~ "red"))
+plot_rn_lcaud_lm <- rn_lcaud_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(color = factor(rn_lcaud_resid$dfbo_rn_lcaud_col)) +
+  geom_smooth(method = "lm") + 
+  xlab("Baseline RvN (z-score residuals)") + ylab("Baseline PFC-S Scores (z-score residuals)") +
+  theme_classic() +
+  theme(legend.position = "none")
+plot_rn_lcaud_lm
+```
+
+## Right Caudate
+```{r, message = F}
+rn_rcaud_pfcs <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rn_rcaud_brn <- lm(z_RvN_2018_RCaud ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rn_rcaud_resid <- data.frame(rn_rcaud_pfcs$residuals, rn_rcaud_brn$residuals,
+                              base_data$dfbo_rn_rcaud_base) %>% 
+  rename(pfcs_resid = rn_rcaud_pfcs.residuals, brn_resid = rn_rcaud_brn.residuals,
+         dfbo_rn_rcaud = base_data.dfbo_rn_rcaud_base) %>% 
+  mutate(dfbo_rn_rcaud_col = case_when(dfbo_rn_rcaud == 0 ~ "black",
+                                       dfbo_rn_rcaud == 1 ~ "red"))
+plot_rn_rcaud_lm <- rn_rcaud_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(color = factor(rn_rcaud_resid$dfbo_rn_rcaud_col)) +
+  geom_smooth(method = "lm") + 
+  xlab("Baseline RvN (z-score residuals)") + ylab("Baseline PFC-S Scores (z-score residuals)") +
+  theme_classic() +
+  theme(legend.position = "none")
+plot_rn_rcaud_lm
+```
+
+## Right mPFC
+```{r, message = F}
+rn_RmPFC_pfcs <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rn_RmPFC_brn <- lm(z_RvN_2021_RmPFC ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rn_RmPFC_resid <- data.frame(rn_RmPFC_pfcs$residuals, rn_RmPFC_brn$residuals,
+                              base_data$dfbo_rn_RmPFC_base) %>% 
+  rename(pfcs_resid = rn_RmPFC_pfcs.residuals, brn_resid = rn_RmPFC_brn.residuals,
+         dfbo_rn_RmPFC = base_data.dfbo_rn_RmPFC_base) %>% 
+  mutate(dfbo_rn_RmPFC_col = case_when(dfbo_rn_RmPFC == 0 ~ "black",
+                                      dfbo_rn_RmPFC == 1 ~ "red"))
+plot_rn_RmPFC_lm <- rn_RmPFC_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(color = factor(rn_RmPFC_resid$dfbo_rn_RmPFC_col)) +
+  geom_smooth(method = "lm") + 
+  xlab("Baseline RvN (z-score residuals)") + ylab("Baseline PFC-S Scores (z-score residuals)") +
+  theme_classic() +
+  theme(legend.position = "none")
+plot_rn_RmPFC_lm
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

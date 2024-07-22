@@ -1,0 +1,128 @@
+---
+title: "S1. Analysis of Behavioral Doors Guessing Task Data"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load packages
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(nnet)
+library(lme4)
+library(sjPlot)
+```
+
+# Load datasets
+```{r, message = FALSE}
+doors_base <- read_csv("final_doors_behav_base.csv")
+doors_fu <- read_csv("final_doors_behav_fu.csv")
+```
+
+# Make the Trial Type and Response variables factors
+## Code Trial Type using unweighted effects coding
+
+### Baseline
+```{r}
+doors_base <- doors_base %>% 
+  filter(!is.na(trial_type)) %>%
+  mutate(trial_type = factor(trial_type, labels = c("Loss", "Neutral", "Reward")),
+         response = factor(response, labels = c("0", "1", "non")))
+
+# check current coding scheme
+contrasts(doors_base$trial_type)
+# update to unweighted effects coding
+contrasts(doors_base$trial_type) <- contr.sum
+# check new coding scheme
+contrasts(doors_base$trial_type)
+```
+
+### Follow-Up
+```{r}
+doors_fu <- doors_fu %>% 
+  filter(!is.na(trial_type)) %>%
+  mutate(trial_type = factor(trial_type, labels = c("Loss", "Neutral", "Reward")),
+         response = factor(response, labels = c("0", "1", "non")))
+
+# check current coding scheme
+contrasts(doors_fu$trial_type)
+# update to unweighted effects coding
+contrasts(doors_fu$trial_type) <- contr.sum
+# check new coding scheme
+contrasts(doors_fu$trial_type)
+```
+
+# Analyze whether Response behavior differed between Trial Types
+
+## Note: Because runs are nested within participants, this nested structure is specified in a multilevel model. Since, Response is a binary categorical variable, a generalized linear multilevel model with binary logistic regression specifications is used.
+
+### Baseline
+```{r}
+null_resp_lm_base <- multinom(response ~ 1, random = 1|subj/run, data = doors_base)
+resp_lm_base <- multinom(response ~ 1 + trial_type, random = 1|subj/run, data = doors_base)
+anova(null_resp_lm_base, resp_lm_base)
+```
+
+### Follow-Up
+```{r}
+null_resp_lm_fu <- multinom(response ~ 1, random = 1|subj/run, data = doors_fu)
+resp_lm_fu <- multinom(response ~ 1 + trial_type, random = 1|subj/run, data = doors_fu)
+anova(null_resp_lm_fu, resp_lm_fu)
+```
+
+# Analyze whether Response Times differed based on Trial Types and Response Options
+
+## Note: Because runs are nested within participants, this nested structure is specified in a multilevel model.
+
+### Baseline
+```{r}
+# Remove non-responses because RT will be maxed out for those
+doors_base_rt <- doors_base %>% 
+  filter(response != "non") %>% mutate(response = factor(response, labels = c("0", "1")))
+# Make the response variable unweighted effects coded (trial_type already is)
+contrasts(doors_base_rt$response) <- contr.sum
+contrasts(doors_base_rt$response)
+# Null model
+null_rt_lm_base <- lmer(resp_time ~ 1 + (1|subj/run), REML = F, data = doors_base_rt)
+# Model with trial_type
+rt_tt_lm_base <- lmer(resp_time ~ 1 + trial_type + (1|subj/run), REML = F, data = doors_base_rt)
+anova(null_rt_lm_base, rt_tt_lm_base)
+# Model with response
+rt_resp_lm_base <- lmer(resp_time ~ 1 + response + (1|subj/run), REML = F, data = doors_base_rt)
+anova(null_rt_lm_base, rt_resp_lm_base)
+# Model with trial_type by response interaction
+rt_tt_resp_lm_base <- lmer(resp_time ~ 1 + trial_type*response + (1|subj/run), REML = F, data = doors_base_rt)
+anova(null_rt_lm_base, rt_tt_resp_lm_base)
+```
+
+### Follow-Up
+```{r}
+# Remove non-responses because RT will be maxed out for those
+doors_fu_rt <- doors_fu %>% 
+  filter(response != "non") %>% mutate(response = factor(response, labels = c("0", "1")))
+# Make the response variable unweighted effects coded (trial_type already is)
+contrasts(doors_fu_rt$response) <- contr.sum
+contrasts(doors_fu_rt$response)
+# Null model
+null_rt_lm_fu <- lmer(resp_time ~ 1 + (1|subj/run), REML = F, data = doors_fu_rt)
+# Model with trial_type
+rt_tt_lm_fu <- lmer(resp_time ~ 1 + trial_type + (1|subj/run), REML = F, data = doors_fu_rt)
+anova(null_rt_lm_fu, rt_tt_lm_fu)
+# Model with response
+rt_resp_lm_fu <- lmer(resp_time ~ 1 + response + (1|subj/run), REML = F, data = doors_fu_rt)
+anova(null_rt_lm_fu, rt_resp_lm_fu)
+# Model with trial_type by response interaction
+rt_tt_resp_lm_fu <- lmer(resp_time ~ 1 + trial_type*response + (1|subj/run), REML = F, data = doors_fu_rt)
+anova(null_rt_lm_fu, rt_tt_resp_lm_fu)
+```
+
+
+
+
+

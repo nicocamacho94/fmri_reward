@@ -1,0 +1,118 @@
+---
+title: "S2. Reactivity Comparisons"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load packages
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(lme4)
+library(emmeans)
+library(sjPlot)
+library(gghalves)
+```
+
+# Load dataset
+```{r, message = FALSE}
+base_data <- read_csv("final_dataset_share.csv") %>% 
+  filter(base_sample == 1) %>% 
+  dplyr::select(., subj, contains("2018"), contains("2021"), contains("_HO_"))
+```
+
+# Transform data to long format & separate out info regarding condition and brain region-of-interest. Make these data factor variables that are unweighted effects coded.
+```{r}
+base_long <- base_data %>% 
+  dplyr::select(., -contains("vN")) %>% 
+  pivot_longer(., cols = !subj, names_to = "condition_roi", values_to = "reactivity") %>% 
+  mutate(condition = factor(case_when(str_detect(condition_roi, "N_") ~ "neutral",
+                               str_detect(condition_roi, "R_") ~ "reward",
+                               str_detect(condition_roi, "L_") ~ "loss"),
+                            labels = c("Loss", "Neutral", "Reward")),
+         roi = factor(case_when(str_detect(condition_roi, "LCaud") ~ "lcaud",
+                         str_detect(condition_roi, "RCaud") ~ "rcaud",
+                         str_detect(condition_roi, "LAmyg") ~ "lamyg",
+                         str_detect(condition_roi, "RmPFC") ~ "rmpfc"),
+                      labels = c("Left Amygdala", "Left Caudate", "Right mPFC", "Right Caudate"))) %>% 
+  relocate(., c(condition, roi), .after = condition_roi)
+# establish unweighted effects coding
+contrasts(base_long$condition) <- contr.sum
+contrasts(base_long$roi) <- contr.sum
+# check coding scheme
+contrasts(base_long$condition)
+contrasts(base_long$roi)
+```
+
+# Analyze the data
+```{r}
+# omnibus test
+null_lm <- lmer(reactivity ~ 1 + (1|subj/condition), REML = F, data = base_long)
+full_lm <- lmer(reactivity ~ 1 + condition + roi + condition*roi + 
+                        (1|subj/condition), REML = F, data = base_long)
+anova(null_lm, full_lm)
+# test of interaction
+me_lm <- lmer(reactivity ~ 1 + condition + roi + (1|subj/condition), REML = F,
+              data = base_long)
+anova(me_lm, full_lm)
+# full model results
+car::Anova(full_lm, type = "III")
+# calculate cell means
+cell_means_int <- emmeans(full_lm, specs = "condition", "roi")
+cell_means_int
+# create contrasts
+contrasts_int <- list(
+  LvN = c(1, -1, 0),
+  RvL = c(-1, 0, 1),
+  RvN = c(0, -1, 1),
+  RLvN = c(1/2, -1, 1/2)
+)
+# run contrasts
+contrast(cell_means_int, contrasts_int, adjust = "none")
+```
+
+# Plot the data
+```{r, fig.height = 5, fig.width = 7}
+plot_model(full_lm, type = "emm", terms = c("roi", "condition"), show.data = F, 
+           dot.size = 2 , pred.type = "fe",
+           axis.title = c("Brain Region-of-Interest", "Reactivity (z-scores)"),
+           title = "Marginal Effects Plot of ROI by Condition on Reactivity")
+```
+
+# Depict the raw reactivity values (z-scores) per ROI and task condition
+```{r}
+base_long_2 <- base_data %>% 
+  pivot_longer(., cols = !subj, names_to = "condition_roi", values_to = "reactivity") %>% 
+  mutate(condition = factor(case_when(str_detect(condition_roi, "N_") & !str_detect(condition_roi, "vN") ~ "neutral",
+                                      str_detect(condition_roi, "R_") ~ "reward",
+                                      str_detect(condition_roi, "L_") ~ "loss",
+                                      str_detect(condition_roi, "RLvN") ~ "RLvN",
+                                      str_detect(condition_roi, "RvN") ~ "RvN"),
+                            labels = c("Loss", "Neutral", "Reward", "RLvN", "RvN")),
+         roi = factor(case_when(str_detect(condition_roi, "LCaud") ~ "lcaud",
+                                str_detect(condition_roi, "RCaud") ~ "rcaud",
+                                str_detect(condition_roi, "LAmyg") ~ "lamyg",
+                                str_detect(condition_roi, "RmPFC") ~ "rmpfc"), 
+                      labels = c("Left Amygdala", "Left Caudate", "Right mPFC", "Right Caudate"))) %>% 
+  relocate(., c(condition, roi), .after = condition_roi)
+```
+
+```{r, fig.height = 7, fig.width = 8}
+base_long_2 %>% 
+  ggplot(data = ., aes(x = roi, y = reactivity, fill = condition)) +
+  geom_half_boxplot(side = "l") + 
+  geom_half_point(side = "r") +
+  scale_fill_brewer(palette = "Accent") +
+  ggtitle("Raw Reactivity Values Per ROI and Condition") +
+  xlab("Region-of-Interest (ROI)") + ylab("Reactivity Values (z-score)") +
+  labs(fill = "Condition") +
+  theme(legend.position = "bottom")
+```
+
+

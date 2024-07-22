@@ -1,0 +1,188 @@
+---
+title: "03. Outlier Detection"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load package
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+```
+
+# Load dataset, retain variables of interest (standardized), and split into baseline and follow-up samples
+```{r, message = FALSE}
+all_data <- read_csv("final_dataset_share.csv")
+
+base_data <- all_data %>% 
+  filter(base_sample == 1) %>% 
+  dplyr::select(., subj, z_child_age_base, z_pfc_s_mean_base, z_bdi_mean_base, 
+                contains("avg") & contains("z_"), contains("RvN") & contains("z_"))
+
+fu_data <- all_data %>% 
+  filter(fu_sample == 1) %>% 
+  dplyr::select(., subj, z_child_age_fu, z_pfc_s_mean_fu, z_bdi_mean_fu,
+                contains("avg") & contains("z_"), 
+                contains("RvN") & contains("z_"))
+```
+
+# Identify participants that are outliers for each model according to the DFBETA value related to the regression coefficient between the fMRI reward/salience reactivity value and PFC-S scores
+
+## Baseline analyses
+
+### Left Amygdala
+```{r}
+# Run the model
+rln_lamyg_base <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                  z_avgRLvN_HO_LAmyg, data = base_data)
+# Identify & save column identifying DFBETA outliers
+base_dfbo <- base_data %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rln_lamyg_base))) %>% 
+  rename(., dfb_rln_lamyg_base = z_avgRLvN_HO_LAmyg) %>%
+  dplyr::select(., subj, dfb_rln_lamyg_base) %>% 
+  mutate(dfbo_rln_lamyg_base = if_else(abs(dfb_rln_lamyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rln_lamyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+```
+
+### Left Caudate
+```{r}
+# Run the model
+rn_lcaud_base <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                  z_RvN_2018_LCaud, data = base_data)
+# Identify & save column identifying DFBETA outliers
+base_dfbo <- base_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rn_lcaud_base))) %>% 
+  rename(., dfb_rn_lcaud_base = z_RvN_2018_LCaud) %>%
+  dplyr::select(., subj, dfb_rn_lcaud_base) %>% 
+  mutate(dfbo_rn_lcaud_base = if_else(abs(dfb_rn_lcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rn_lcaud_base) %>% 
+  left_join(base_dfbo, ., by = "subj")
+```
+
+### Right Caudate
+```{r}
+# Run the model
+rn_rcaud_base <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                  z_RvN_2018_RCaud, data = base_data)
+# Identify & save column identifying DFBETA outliers
+base_dfbo <- base_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rn_rcaud_base))) %>% 
+  rename(., dfb_rn_rcaud_base = z_RvN_2018_RCaud) %>%
+  dplyr::select(., subj, dfb_rn_rcaud_base) %>% 
+  mutate(dfbo_rn_rcaud_base = if_else(abs(dfb_rn_rcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rn_rcaud_base) %>% 
+  left_join(base_dfbo, ., by = "subj")
+```
+
+### Right pACC
+```{r}
+# Run the model
+rn_RmPFC_base <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                  z_RvN_2021_RmPFC, data = base_data)
+# Identify & save column identifying DFBETA outliers
+base_dfbo <- base_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rn_RmPFC_base))) %>% 
+  rename(., dfb_rn_RmPFC_base = z_RvN_2021_RmPFC) %>%
+  dplyr::select(., subj, dfb_rn_RmPFC_base) %>% 
+  mutate(dfbo_rn_RmPFC_base = if_else(abs(dfb_rn_RmPFC_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rn_RmPFC_base) %>% 
+  left_join(base_dfbo, ., by = "subj")
+```
+
+## Follow-Up
+
+### Left Amygdala
+```{r}
+# Run the model
+rln_lamyg_fu <- lm(z_pfc_s_mean_fu ~ 1 + z_child_age_fu + z_bdi_mean_fu + 
+                     z_avgRLvN_HO_LAmyg, data = fu_data)
+# Identify & save column identifying DFBETA outliers
+fu_dfbo <- fu_data %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rln_lamyg_fu))) %>% 
+  rename(., dfb_rln_lamyg_fu = z_avgRLvN_HO_LAmyg) %>%
+  dplyr::select(., subj, dfb_rln_lamyg_fu) %>% 
+  mutate(dfbo_rln_lamyg_fu = if_else(abs(dfb_rln_lamyg_fu) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rln_lamyg_fu) %>% 
+  left_join(fu_data, ., by = "subj")
+```
+
+### Left Caudate
+```{r}
+# Run the model
+rn_lcaud_fu <- lm(z_pfc_s_mean_fu ~ 1 + z_child_age_fu + z_bdi_mean_fu + 
+                    z_RvN_2018_LCaud, data = fu_data)
+# Identify & save column identifying DFBETA outliers
+fu_dfbo <- fu_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rn_lcaud_fu))) %>% 
+  rename(., dfb_rn_lcaud_fu = z_RvN_2018_LCaud) %>%
+  dplyr::select(., subj, dfb_rn_lcaud_fu) %>% 
+  mutate(dfbo_rn_lcaud_fu = if_else(abs(dfb_rn_lcaud_fu) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rn_lcaud_fu) %>% 
+  left_join(fu_dfbo, ., by = "subj")
+```
+
+### Right Caudate
+```{r}
+# Run the model
+rn_rcaud_fu <- lm(z_pfc_s_mean_fu ~ 1 + z_child_age_fu + z_bdi_mean_fu + 
+                    z_RvN_2018_RCaud, data = fu_data)
+# Identify & save column identifying DFBETA outliers
+fu_dfbo <- fu_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rn_rcaud_fu))) %>% 
+  rename(., dfb_rn_rcaud_fu = z_RvN_2018_RCaud) %>%
+  dplyr::select(., subj, dfb_rn_rcaud_fu) %>% 
+  mutate(dfbo_rn_rcaud_fu = if_else(abs(dfb_rn_rcaud_fu) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rn_rcaud_fu) %>% 
+  left_join(fu_dfbo, ., by = "subj")
+```
+
+### Right mPFC
+```{r}
+# Run the model
+rn_RmPFC_fu <- lm(z_pfc_s_mean_fu ~ 1 + z_child_age_fu + z_bdi_mean_fu + 
+                   z_RvN_2021_RmPFC, data = fu_data)
+# Identify & save column identifying DFBETA outliers
+fu_dfbo <- fu_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rn_RmPFC_fu))) %>% 
+  rename(., dfb_rn_RmPFC_fu = z_RvN_2021_RmPFC) %>%
+  dplyr::select(., subj, dfb_rn_RmPFC_fu) %>% 
+  mutate(dfbo_rn_RmPFC_fu = if_else(abs(dfb_rn_RmPFC_fu) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rn_RmPFC_fu) %>% 
+  left_join(fu_dfbo, ., by = "subj")
+```
+
+# Count of outliers identified per model
+
+## Baseline
+```{r}
+base_dfbo %>% 
+  summarise(n_rln_lamyg = sum(.$dfbo_rln_lamyg_base),
+            n_rn_lcaud = sum(.$dfbo_rn_lcaud_base),
+            n_rn_rcaud = sum(.$dfbo_rn_rcaud_base),
+            n_rn_RmPFC = sum(.$dfbo_rn_RmPFC_base))
+```
+
+## Follow-up
+```{r}
+fu_dfbo %>% 
+  summarise(n_rln_lamyg = sum(.$dfbo_rln_lamyg_fu),
+            n_rn_lcaud = sum(.$dfbo_rn_lcaud_fu),
+            n_rn_rcaud = sum(.$dfbo_rn_rcaud_fu),
+            n_rn_RmPFC = sum(.$dfbo_rn_RmPFC_fu))
+```
+
+# Save dataframes for regression analyses
+```{r}
+write.csv(base_dfbo, file = "final_baseline_dfbo.csv", row.names = FALSE)
+write.csv(fu_dfbo, file = "final_followup_dfbo.csv", row.names = FALSE)
+```
+
+
+

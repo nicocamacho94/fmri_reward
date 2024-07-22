@@ -1,0 +1,83 @@
+---
+title: "02. Correlation Matrix"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load packages
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(Hmisc)
+library(ggcorrplot)
+library(apaTables)
+```
+
+# Load dataset and split into baseline sample
+```{r, message = FALSE}
+trunc_data <- read_csv("final_dataset_share.csv") %>% 
+  dplyr::select(., subj, base_sample, child_sex, contains("age"), contains("i2n"), 
+                months_bw_visits, contains("pfc_s") & contains("mean"), 
+                contains("bdi") & contains("mean"), contains("avg"), contains("RvN")) %>% 
+  dplyr::select(., -contains("z_")) %>% 
+  mutate(child_sex_bin = factor(child_sex, labels = c(0, 1))) %>% # 0 = F, 1 = M
+  relocate(child_sex_bin, .after = child_sex)
+
+base_data <- trunc_data %>%
+  filter(base_sample == 1) %>% 
+  dplyr::select(., -base_sample, -child_sex)
+```
+
+# Create correlation matrix for main continuous variables of interest
+```{r, message = FALSE}
+# Calculate Pearson's correlations
+correl_mtx <- rcorr(as.matrix(dplyr::select(base_data, -c(subj))), type = "pearson")
+
+# Establish names of rows/columns to be shown on heat map
+var_names <- c("Sex", "Age (T1)", "Age (T2)", "ItN (T1)", "ItN (T2)", "Months bw Visits",
+               "PFC-S (T1)", "PFC-S (T2)", "BDI-II (T1)", "BDI-II (T2)", "RLvN L Amygdala",
+               "RvN L Caudate", "RvN R Caudate", "RvN R mPFC")
+
+# Update the correlation matrix rows and names
+row.names(correl_mtx$r) <- var_names
+colnames(correl_mtx$r) <- var_names
+row.names(correl_mtx$P) <- var_names
+colnames(correl_mtx$P) <- var_names
+
+# Create correlation matrix heatmap
+corr_heatMap <- ggcorrplot(correl_mtx$r, p.mat = correl_mtx$P,
+                           type = "lower", method = "square",
+                           ggtheme = ggplot2::theme_minimal,
+                           show.legend = T, legend.title = "Pearson\nCorrelations",
+                           show.diag = NULL,
+                           colors = c("#41598F", "#FFFFFF", "#C8102E"), 
+                           outline.color = "lightgrey",
+                           lab = T, lab_size = 3,
+                           sig.level = 0.05, insig = "pch", pch = 4, pch.col = "black", pch.cex = 5,
+                           tl.cex = 5, tl.col = "black", tl.srt = 45, digits = 2)
+corr_heatMap
+ggsave("../visuals/corr_heatMap.png", plot = corr_heatMap, dpi = 300)
+```
+
+# Create APA correlation table of main continuous variables of interest
+
+## Does not contain sex because automatically deletes factor variables
+### Point-biserial correlations involving sex added manually
+```{r, eval = FALSE}
+corr_df <- dplyr::select(base_data, -c(subj))
+colnames(corr_df) <- var_names
+apa.cor.table(corr_df, 
+              table.number = 1, show.sig.stars = T, landscape = T,
+              filename = "../visuals/corr_plot_apa.doc")
+```
+
+
+
+

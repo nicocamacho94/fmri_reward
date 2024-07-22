@@ -1,0 +1,211 @@
+---
+title: "04. Concurrent Regression Analyses"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load packages
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(broom)
+library(sensemakr)
+library(lm.beta)
+library(miceadds)
+library(cowplot)
+library(grid)
+library(gridExtra)
+```
+
+# Load dataset
+```{r, message = FALSE}
+base_dfbo <- read_csv("final_dataset_share.csv") %>% 
+  filter(base_sample == 1) %>%
+  dplyr::select(., subj, fam_code, z_child_age_base, z_pfc_s_mean_base, z_bdi_mean_base, 
+                contains("avg") & contains("z_"), contains("RvN") & contains("z_"),
+                contains("dfbo") & contains("base"))
+```
+
+# Run regression analyses (covariates: child age and parent BDI-II; clusters: according to family code)
+
+## Left Amygdala
+```{r}
+# remove DFBETA outliers for this model
+rln_lamyg_df <- base_dfbo %>% filter(dfbo_rln_lamyg_base == 0)
+# run restricted and full models
+restrict_lamyg_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                        cluster = "fam_code", data = rln_lamyg_df)
+rln_lamyg_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_LAmyg, cluster = "fam_code", data = rln_lamyg_df)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_lamyg_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_LAmyg, data = rln_lamyg_df)
+# view results
+summary(restrict_lamyg_lm)
+summary(rln_lamyg_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(rln_lamyg_lm, level = 0.90) # consider only upper limit for 95% confidence that estimate is < 0
+.07439 - .04671 # R^2 change
+glance(rln_lamyg_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -2.22016770, dof = 103) # effect size specific to fMRI predictor
+```
+
+## Left Caudate
+```{r}
+# remove DFBETA outliers for this model
+rn_lcaud_df <- base_dfbo %>% filter(dfbo_rn_lcaud_base == 0)
+# run restricted and full models
+restrict_lcaud_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                        cluster = "fam_code", data = rn_lcaud_df)
+rln_lcaud_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_LCaud, cluster = "fam_code", data = rn_lcaud_df)
+
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_lcaud_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_LCaud, data = rn_lcaud_df)
+
+# view results
+summary(restrict_lcaud_lm)
+summary(rln_lcaud_lm)
+confint(rln_lcaud_lm, level = 0.95) # 95% CI
+.08323 - .05658 # R^2 change
+glance(rln_lcaud_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Right Caudate
+```{r}
+# remove DFBETA outliers for this model
+rn_rcaud_df <- base_dfbo %>% filter(dfbo_rn_rcaud_base == 0)
+# run restricted and full models
+restrict_rcaud_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                        cluster = "fam_code", data = rn_rcaud_df)
+rln_rcaud_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_RCaud, cluster = "fam_code", data = rn_rcaud_df)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_rcaud_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2018_RCaud, data = rn_rcaud_df)
+# view results
+summary(restrict_rcaud_lm)
+summary(rln_rcaud_lm) 
+confint(rln_rcaud_lm, level = 0.95) # 95% CI
+.11754 - .03409 # R^2 change
+glance(rln_rcaud_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -3.67463313, dof = 100) # effect size specific to fMRI predictor
+```
+
+## Right mPFC
+```{r}
+# remove DFBETA outliers for this model
+rn_RmPFC_df <- base_dfbo %>% filter(dfbo_rn_RmPFC_base == 0)
+# run restricted and full models
+restrict_RmPFC_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                        cluster = "fam_code", data = rn_RmPFC_df)
+rln_RmPFC_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2021_RmPFC, cluster = "fam_code", data = rn_RmPFC_df)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_RmPFC_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_RvN_2021_RmPFC, data = rn_RmPFC_df)
+# view results
+summary(restrict_RmPFC_lm)
+summary(rln_RmPFC_lm) 
+confint(rln_RmPFC_lm, level = 0.95) # 95% CI
+.13538 - .09254 # R^2 change
+glance(rln_RmPFC_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -2.8307512, dof = 102) # effect size specific to fMRI predictor
+```
+
+# Create plots
+
+## Left Amygdala
+```{r, message = F, fig.height=2.75, fig.width=2.5}
+rln_lamyg_pfcs <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                             cluster = "fam_code", data = rln_lamyg_df)
+rln_lamyg_brn <- lm.cluster(z_avgRLvN_HO_LAmyg ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                            cluster = "fam_code", data = rln_lamyg_df)
+rln_lamyg_resid <- data.frame(rln_lamyg_pfcs$lm_res$residuals, rln_lamyg_brn$lm_res$residuals) %>% 
+  rename(pfcs_resid = rln_lamyg_pfcs.lm_res.residuals, brn_resid = rln_lamyg_brn.lm_res.residuals)
+plot_rln_lamyg_lm <- rln_lamyg_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", linewidth = 1.5) + 
+  xlab("Left Amygdala\nSalience Reactivity") + ylab("") +
+  theme_classic(base_size = 11, base_family = "serif") +
+  theme(axis.title.x = element_text(face = "bold"))
+plot_rln_lamyg_lm
+```
+
+## Left Caudate
+```{r, message = F, fig.height=2.75, fig.width=2.5}
+rn_lcaud_pfcs <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                            cluster = "fam_code", data = rn_lcaud_df)
+rn_lcaud_brn <- lm.cluster(z_RvN_2018_LCaud ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                           cluster = "fam_code", data = rn_lcaud_df)
+rn_lcaud_resid <- data.frame(rn_lcaud_pfcs$lm_res$residuals, rn_lcaud_brn$lm_res$residuals) %>% 
+  rename(pfcs_resid = rn_lcaud_pfcs.lm_res.residuals, brn_resid = rn_lcaud_brn.lm_res.residuals)
+plot_rn_lcaud_lm <- rn_lcaud_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", linewidth = 1.5) + 
+  xlab("Left Caudate\nReward Reactivity") + ylab("") +
+  theme_classic(base_size = 11, base_family = "serif") +
+  theme(axis.title.x = element_text(face = "bold"))
+plot_rn_lcaud_lm
+```
+
+## Right Caudate
+```{r, message = F, fig.height=2.75, fig.width=2.5}
+rn_rcaud_pfcs <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                            cluster = "fam_code", data = rn_rcaud_df)
+rn_rcaud_brn <- lm.cluster(z_RvN_2018_RCaud ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                   cluster = "fam_code", data = rn_rcaud_df)
+rn_rcaud_resid <- data.frame(rn_rcaud_pfcs$lm_res$residuals, rn_rcaud_brn$lm_res$residuals) %>% 
+  rename(pfcs_resid = rn_rcaud_pfcs.lm_res.residuals, brn_resid = rn_rcaud_brn.lm_res.residuals)
+plot_rn_rcaud_lm <- rn_rcaud_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", linewidth = 1.5) + 
+  xlab("Right Caudate\nReward Reactivity") + ylab("") +
+  theme_classic(base_size = 11, base_family = "serif") +
+  theme(axis.title.x = element_text(face = "bold"))
+plot_rn_rcaud_lm
+```
+
+## Right mPFC
+```{r, message = F, fig.height=2.75, fig.width=2.5}
+rn_RmPFC_pfcs <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                           cluster = "fam_code", data = rn_RmPFC_df)
+rn_RmPFC_brn <- lm.cluster(z_RvN_2021_RmPFC ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                          cluster = "fam_code", data = rn_RmPFC_df)
+rn_RmPFC_resid <- data.frame(rn_RmPFC_pfcs$lm_res$residuals, rn_RmPFC_brn$lm_res$residuals) %>% 
+  rename(pfcs_resid = rn_RmPFC_pfcs.lm_res.residuals, brn_resid = rn_RmPFC_brn.lm_res.residuals)
+plot_rn_RmPFC_lm <- rn_RmPFC_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", linewidth = 1.5) + 
+  xlab("Right mPFC\nReward Reactivity") + ylab("") +
+  theme_classic(base_size = 11, base_family = "serif") +
+  theme(axis.title.x = element_text(face = "bold"))
+plot_rn_RmPFC_lm
+```
+
+## Combined plots with significant findings only
+```{r, fig.height=7.75, fig.width=2.5}
+comb_plot <- plot_grid(plot_rln_lamyg_lm, plot_rn_rcaud_lm, plot_rn_RmPFC_lm,
+                       ncol = 1, labels = c("D", "E", "F"), label_size = 12,
+                       label_fontfamily = "serif", hjust = -2)
+y.grob <- textGrob("Child Depressive Symptom Severity at Baseline",
+                   gp = gpar(fontfamily="serif", fontsize = 12, fontface = "bold"), rot = 90)
+top.grob <- textGrob("Concurrent Associations", 
+                     gp = gpar(fontfamily = "serif", fontsize = 15, fontface = "bold"))
+grid.arrange(arrangeGrob(comb_plot, left = y.grob, top = top.grob))
+```
+
+
+
+

@@ -1,0 +1,374 @@
+---
+title: "01. Demographics"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nlc22/Documents/NicolasCamacho/fmri_reward/analysis_data")
+```
+
+# Load packages
+```{r, message = FALSE}
+library(tidyverse)
+library(car)
+library(emmeans)
+```
+
+# Load dataset, retain only demographics data, then separate into baseline & follow-up samples
+```{r, message = FALSE}
+all_data <- read_csv("final_dataset_share.csv") %>% 
+  dplyr::select(., subj:ocd_past_base, pfc_s_mean_base) %>% 
+  mutate_at(c("child_sex", "child_race", "child_hisp",
+              "reporter_base", "reporter_fu"), as_factor)
+
+base_data <- all_data %>% filter(., base_sample == 1)
+
+fu_data <- base_data %>% filter(., fu_sample == 1)
+```
+
+# Summarize demographics for baseline sample
+```{r}
+base_summary <- base_data %>% 
+  summarize(
+    cnt_male = sum(child_sex == "male"),
+    perc_male = (sum(child_sex == "male")/length(child_sex))*100,
+    
+    cnt_fem = sum(child_sex == "female"),
+    perc_fem = (sum(child_sex == "female")/length(child_sex))*100,
+    
+    min_age = min(child_age_base),
+    max_age = max(child_age_base),
+    mean_age = mean(child_age_base),
+    sd_age = sd(child_age_base),
+    
+    cnt_white = sum(child_race == "white"),
+    perc_white = (sum(child_race == "white")/length(child_race))*100,
+    cnt_black = sum(child_race == "black"),
+    perc_black = (sum(child_race == "black")/length(child_race))*100,
+    cnt_asian = sum(child_race == "asian"),
+    perc_asian = (sum(child_race == "asian")/length(child_race))*100,
+    cnt_aian = sum(child_race == "aian"),
+    perc_aian = (sum(child_race == "aian")/length(child_race))*100,
+    cnt_white_black = sum(child_race == "white_black"),
+    perc_white_black = (sum(child_race == "white_black")/length(child_race))*100,
+    cnt_white_asian = sum(child_race == "white_asian"),
+    perc_white_asian = (sum(child_race == "white_asian")/length(child_race))*100,
+    cnt_white_nhopi = sum(child_race == "white_nhopi"),
+    perc_white_nhopi = (sum(child_race == "white_nhopi")/length(child_race))*100,
+    cnt_multi_unspec = sum(child_race == "mixed - unspec"),
+    perc_multi_unspec = (sum(child_race == "mixed - unspec")/length(child_race))*100,
+    cnt_unspec = sum(child_race == "unspec"),
+    perc_unspec = (sum(child_race == "unspec")/length(child_race))*100,
+    
+    cnt_hisp = sum(child_hisp == "yes"),
+    perc_hisp = (sum(child_hisp == "yes")/length(child_hisp))*100,
+    
+    cnt_mom_rep = sum(reporter_base == "bio_mom"),
+    perc_mom_rep = (sum(reporter_base == "bio_mom")/length(reporter_base))*100,
+    cnt_dad_rep = sum(reporter_base == "bio_dad"),
+    perc_dad_rep = (sum(reporter_base == "bio_dad")/length(reporter_base))*100,
+    
+    min_income = min(na.omit(fam_income_base)),
+    max_income = max(na.omit(fam_income_base)),
+    mean_income = mean(na.omit(fam_income_base)),
+    median_income = median(na.omit(fam_income_base)),
+    sd_income = sd(na.omit(fam_income_base)),
+    
+    cnt_below25k = sum(na.omit(fam_income_base) < 25000),
+    perc_below25k = (sum(na.omit(fam_income_base) < 25000)/length(fam_income_base))*100,
+    cnt_25_49k = sum(na.omit(fam_income_base) > 24999 & na.omit(fam_income_base) < 50000),
+    perc_25_49k = (sum(na.omit(fam_income_base) > 24999 & na.omit(fam_income_base) < 50000)/length(fam_income_base))*100,
+    cnt_50_74k = sum(na.omit(fam_income_base) > 49999 & na.omit(fam_income_base) < 75000),
+    perc_50_74k = (sum(na.omit(fam_income_base) > 49999 & na.omit(fam_income_base) < 75000)/length(fam_income_base))*100,
+    cnt_75_99k = sum(na.omit(fam_income_base) > 74999 & na.omit(fam_income_base) < 100000),
+    perc_75_99k = (sum(na.omit(fam_income_base) > 74999 & na.omit(fam_income_base) < 100000)/length(fam_income_base))*100,
+    cnt_100k_plus = sum(na.omit(fam_income_base) > 100000),
+    perc_100k_plus = (sum(na.omit(fam_income_base) > 100000)/length(fam_income_base))*100,
+    
+    min_i2n = min(na.omit(i2n_base)),
+    max_i2n = max(na.omit(i2n_base)),
+    mean_i2n = mean(na.omit(i2n_base)),
+    median_i2n = median(na.omit(i2n_base)),
+    sd_i2n = sd(na.omit(i2n_base)),
+    
+    cnt_at_below_pov = sum(na.omit(i2n_base) <= 1),
+    perc_at_below_pov = (sum(na.omit(i2n_base) <= 1)/length(i2n_base))*100,
+    cnt_above_pov = sum(na.omit(i2n_base) > 1),
+    perc_above_pov = (sum(na.omit(i2n_base) > 1)/length(i2n_base))*100,
+    
+    cnt_mdd_current = sum(na.omit(mdd_current_base)),
+    perc_mdd_current = (sum(na.omit(mdd_current_base))/length(mdd_current_base))*100,
+    cnt_mdd_past = sum(na.omit(mdd_past_base)),
+    perc_mdd_past = (sum(na.omit(mdd_past_base))/length(mdd_past_base))*100,
+    cnt_adhd_current = sum(na.omit(adhd_current_base)),
+    perc_adhd_current = (sum(na.omit(adhd_current_base))/length(adhd_current_base))*100,
+    cnt_odd_current = sum(na.omit(odd_current_base)),
+    perc_odd_current = (sum(na.omit(odd_current_base))/length(odd_current_base))*100,
+    cnt_gad_current = sum(na.omit(gad_current_base)),
+    perc_gad_current = (sum(na.omit(gad_current_base))/length(gad_current_base))*100,
+    cnt_socanx_current = sum(na.omit(socanx_current_base)),
+    perc_socanx_current = (sum(na.omit(socanx_current_base))/length(socanx_current_base))*100,
+    cnt_ocd_past = sum(na.omit(ocd_past_base)),
+    perc_ocd_past = (sum(na.omit(ocd_past_base))/length(ocd_past_base))*100,
+    cnt_spec_phobia_past = sum(na.omit(spec_phobia_past_base)),
+    perc_spec_phobia_past = (sum(na.omit(spec_phobia_past_base))/length(spec_phobia_past_base))*100
+  )
+base_summary
+```
+
+# Summarize demographics for follow-up sample
+```{r}
+fu_summary <- fu_data %>% 
+  summarize(
+    cnt_male = sum(child_sex == "male"),
+    perc_male = (sum(child_sex == "male")/length(child_sex))*100,
+    
+    cnt_fem = sum(child_sex == "female"),
+    perc_fem = (sum(child_sex == "female")/length(child_sex))*100,
+    
+    min_age = min(child_age_fu),
+    max_age = max(child_age_fu),
+    mean_age = mean(child_age_fu),
+    sd_age = sd(child_age_fu),
+    
+    cnt_white = sum(child_race == "white"),
+    perc_white = (sum(child_race == "white")/length(child_race))*100,
+    cnt_black = sum(child_race == "black"),
+    perc_black = (sum(child_race == "black")/length(child_race))*100,
+    cnt_asian = sum(child_race == "asian"),
+    perc_asian = (sum(child_race == "asian")/length(child_race))*100,
+    cnt_aian = sum(child_race == "aian"),
+    perc_aian = (sum(child_race == "aian")/length(child_race))*100,
+    cnt_white_black = sum(child_race == "white_black"),
+    perc_white_black = (sum(child_race == "white_black")/length(child_race))*100,
+    cnt_white_asian = sum(child_race == "white_asian"),
+    perc_white_asian = (sum(child_race == "white_asian")/length(child_race))*100,
+    cnt_white_nhopi = sum(child_race == "white_nhopi"),
+    perc_white_nhopi = (sum(child_race == "white_nhopi")/length(child_race))*100,
+    cnt_multi_unspec = sum(child_race == "mixed - unspec"),
+    perc_multi_unspec = (sum(child_race == "mixed - unspec")/length(child_race))*100,
+    cnt_unspec = sum(child_race == "unspec"),
+    perc_unspec = (sum(child_race == "unspec")/length(child_race))*100,
+    
+    cnt_hisp = sum(child_hisp == "yes"),
+    perc_hisp = (sum(child_hisp == "yes")/length(child_hisp))*100,
+    
+    cnt_mom_rep = sum(reporter_fu == "bio_mom"),
+    perc_mom_rep = (sum(reporter_fu == "bio_mom")/length(reporter_fu))*100,
+    cnt_dad_rep = sum(reporter_fu == "bio_dad"),
+    perc_dad_rep = (sum(reporter_fu == "bio_dad")/length(reporter_fu))*100,
+    
+    min_income = min(na.omit(fam_income_fu)),
+    max_income = max(na.omit(fam_income_fu)),
+    mean_income = mean(na.omit(fam_income_fu)),
+    median_income = median(na.omit(fam_income_fu)),
+    sd_income = sd(na.omit(fam_income_fu)),
+    
+    cnt_below25k = sum(na.omit(fam_income_fu) < 25000),
+    perc_below25k = (sum(na.omit(fam_income_fu) < 25000)/length(fam_income_fu))*100,
+    cnt_25_49k = sum(na.omit(fam_income_fu) > 24999 & na.omit(fam_income_fu) < 50000),
+    perc_25_49k = (sum(na.omit(fam_income_fu) > 24999 & na.omit(fam_income_fu) < 50000)/length(fam_income_fu))*100,
+    cnt_50_74k = sum(na.omit(fam_income_fu) > 49999 & na.omit(fam_income_fu) < 75000),
+    perc_50_74k = (sum(na.omit(fam_income_fu) > 49999 & na.omit(fam_income_fu) < 75000)/length(fam_income_fu))*100,
+    cnt_75_99k = sum(na.omit(fam_income_fu) > 74999 & na.omit(fam_income_fu) < 100000),
+    perc_75_99k = (sum(na.omit(fam_income_fu) > 74999 & na.omit(fam_income_fu) < 100000)/length(fam_income_fu))*100,
+    cnt_100k_plus = sum(na.omit(fam_income_fu) > 100000),
+    perc_100k_plus = (sum(na.omit(fam_income_fu) > 100000)/length(fam_income_fu))*100,
+    
+    min_i2n = min(na.omit(i2n_fu)),
+    max_i2n = max(na.omit(i2n_fu)),
+    mean_i2n = mean(na.omit(i2n_fu)),
+    median_i2n = median(na.omit(i2n_fu)),
+    sd_i2n = sd(na.omit(i2n_fu)),
+    
+    cnt_at_below_pov = sum(na.omit(i2n_fu) <= 1),
+    perc_at_below_pov = (sum(na.omit(i2n_fu) <= 1)/length(i2n_fu))*100,
+    cnt_above_pov = sum(na.omit(i2n_fu) > 1),
+    perc_above_pov = (sum(na.omit(i2n_fu) > 1)/length(i2n_fu))*100,
+    
+    cnt_mdd_current = sum(na.omit(mdd_current_base)),
+    perc_mdd_current = (sum(na.omit(mdd_current_base))/length(mdd_current_base))*100,
+    cnt_mdd_past = sum(na.omit(mdd_past_base)),
+    perc_mdd_past = (sum(na.omit(mdd_past_base))/length(mdd_past_base))*100,
+    cnt_adhd_current = sum(na.omit(adhd_current_base)),
+    perc_adhd_current = (sum(na.omit(adhd_current_base))/length(adhd_current_base))*100,
+    cnt_odd_current = sum(na.omit(odd_current_base)),
+    perc_odd_current = (sum(na.omit(odd_current_base))/length(odd_current_base))*100,
+    cnt_gad_current = sum(na.omit(gad_current_base)),
+    perc_gad_current = (sum(na.omit(gad_current_base))/length(gad_current_base))*100,
+    cnt_socanx_current = sum(na.omit(socanx_current_base)),
+    perc_socanx_current = (sum(na.omit(socanx_current_base))/length(socanx_current_base))*100,
+    cnt_ocd_past = sum(na.omit(ocd_past_base)),
+    perc_ocd_past = (sum(na.omit(ocd_past_base))/length(ocd_past_base))*100,
+    cnt_spec_phobia_past = sum(na.omit(spec_phobia_past_base)),
+    perc_spec_phobia_past = (sum(na.omit(spec_phobia_past_base))/length(spec_phobia_past_base))*100
+  )
+fu_summary
+```
+
+# Assess the extent to which the baseline sample differs demographically from omitted participants
+
+## Create a column to clearly differentiate between the baseline and omitted samples
+```{r}
+all_data_BvO <- all_data %>% 
+  mutate(base_v_omit = factor(case_when(base_sample == 1 ~ "baseline",
+                                        base_sample == 0 ~ "omitted")))
+# check dummy contrast code
+contrasts(all_data_BvO$base_v_omit)
+```
+
+### Child Age (at baseline)
+```{r}
+baseAge_full_bvo <- lm(child_age_base ~ 1 + base_v_omit, data = all_data_BvO)
+Anova(baseAge_full_bvo, type = "III")
+emmeans(baseAge_full_bvo, "base_v_omit")
+pairs(emmeans(baseAge_full_bvo, "base_v_omit"))
+```
+
+### Child Sex assigned at birth
+```{r}
+sex_bvo_propTest <- all_data_BvO %>%
+  group_by(base_v_omit) %>% 
+  summarise(male = sum(child_sex == "male"),
+            female = sum(child_sex == "female"))
+
+prop.test(x = as.matrix(sex_bvo_propTest[-1]), alternative = 'two.sided')
+```
+
+### Child Race
+
+#### First, given small sample sizes for each multi-racial category, collapse across them
+#### Also, omit participants without specified race
+```{r, warning = F}
+race_data_BvO <- all_data_BvO %>% 
+  dplyr::select(subj, child_race, contains("_v_")) %>% 
+  mutate(child_race = factor(case_when(child_race == "white" ~ "white",
+                                       child_race == "black" ~ "black",
+                                       child_race == "asian" ~ "asian",
+                                       child_race == "aian" ~ "aian",
+                                       child_race == "white_asian" |
+                                         child_race == "white_nhopi" |
+                                         child_race == "white_black" |
+                                         child_race == "mixed - unspec" ~ "multi")))
+
+race_bvo_summary <- race_data_BvO %>%
+  group_by(base_v_omit) %>% 
+  summarise(white = sum(na.omit(child_race) == "white"),
+            black = sum(na.omit(child_race) == "black"),
+            asian = sum(na.omit(child_race) == "asian"),
+            aian = sum(na.omit(child_race) == "aian"),
+            multi = sum(na.omit(child_race) == "multi"))
+chisq.test(as.matrix(race_bvo_summary[-1]))
+```
+
+### Child Ethnicity
+```{r}
+ethnic_bvo_summary <- all_data_BvO %>%
+  group_by(base_v_omit) %>% 
+  summarise(hisp = sum(na.omit(child_hisp == "yes")),
+            non_hisp = sum(na.omit(child_hisp) == "no")) 
+prop.test(x = as.matrix(ethnic_bvo_summary[-1]), alternative = 'two.sided')
+```
+
+### Income-to-Needs
+```{r}
+basei2n_full_bvo <- lm(i2n_base ~ 1 + base_v_omit, data = all_data_BvO)
+Anova(basei2n_full_bvo, type = "III")
+emmeans(basei2n_full_bvo, "base_v_omit")
+pairs(emmeans(basei2n_full_bvo, "base_v_omit"))
+```
+
+### PFC-S scores (at baseline)
+```{r}
+base_pfcs_full_bvo <- lm(pfc_s_mean_base ~ 1 + base_v_omit, data = all_data_BvO)
+Anova(base_pfcs_full_bvo, type = "III")
+emmeans(base_pfcs_full_bvo, "base_v_omit")
+pairs(emmeans(base_pfcs_full_bvo, "base_v_omit"))
+```
+
+# Assess the extent to which the follow-up sample differs demographically from participants with baseline data that were omitted
+
+## Create a column to clearly differentiate between the follow-up and omitted baseline samples
+```{r}
+all_data_FvBO <- all_data %>% 
+  filter(base_sample == 1) %>% 
+  mutate(fu_v_baseOmit = factor(case_when(fu_sample == 1 ~ "fu",
+                                          fu_sample == 0 ~ "baseOmitted")))
+# check dummy contrast code
+contrasts(all_data_FvBO$fu_v_baseOmit)
+```
+
+### Child Age (at baseline)
+```{r}
+baseAge_full_fvbo <- lm(child_age_base ~ 1 + fu_v_baseOmit, data = all_data_FvBO)
+Anova(baseAge_full_fvbo, type = "III")
+emmeans(baseAge_full_fvbo, "fu_v_baseOmit")
+pairs(emmeans(baseAge_full_fvbo, "fu_v_baseOmit"))
+```
+
+### Child Sex assigned at birth
+```{r}
+sex_fvbo_propTest <- all_data_FvBO %>%
+  group_by(fu_v_baseOmit) %>% 
+  summarise(male = sum(child_sex == "male"),
+            female = sum(child_sex == "female"))
+
+prop.test(x = as.matrix(sex_fvbo_propTest[-1]), alternative = 'two.sided')
+```
+
+### Child Race
+
+#### First, given small sample sizes for each multi-racial category, collapse across them
+#### Also, omit participants without specified race
+```{r, warning = F}
+race_data_FvBO <- all_data_FvBO %>% 
+  dplyr::select(subj, child_race, contains("_v_")) %>% 
+  mutate(child_race = factor(case_when(child_race == "white" ~ "white",
+                                       child_race == "black" ~ "black",
+                                       child_race == "asian" ~ "asian",
+                                       child_race == "aian" ~ "aian",
+                                       child_race == "white_asian" |
+                                         child_race == "white_nhopi" |
+                                         child_race == "white_black" |
+                                         child_race == "mixed - unspec" ~ "multi")))
+
+race_fvbo_summary <- race_data_FvBO %>%
+  group_by(fu_v_baseOmit) %>% 
+  summarise(white = sum(na.omit(child_race) == "white"),
+            black = sum(na.omit(child_race) == "black"),
+            asian = sum(na.omit(child_race) == "asian"),
+            aian = sum(na.omit(child_race) == "aian"),
+            multi = sum(na.omit(child_race) == "multi"))
+chisq.test(as.matrix(race_fvbo_summary[-1]))
+```
+
+### Child Ethnicity
+```{r, warning = F}
+ethnic_fvbo_summary <- all_data_FvBO %>%
+  group_by(fu_v_baseOmit) %>% 
+  summarise(hisp = sum(na.omit(child_hisp == "yes")),
+            non_hisp = sum(na.omit(child_hisp) == "no")) 
+prop.test(x = as.matrix(ethnic_fvbo_summary[-1]), alternative = 'two.sided')
+```
+
+### Income-to-Needs
+```{r}
+basei2n_full_fvbo <- lm(i2n_base ~ 1 + fu_v_baseOmit, data = all_data_FvBO)
+Anova(basei2n_full_fvbo, type = "III")
+emmeans(basei2n_full_fvbo, "fu_v_baseOmit")
+pairs(emmeans(basei2n_full_fvbo, "fu_v_baseOmit"))
+```
+
+### PFC-S scores (at baseline)
+```{r}
+base_pfcs_full_fvbo <- lm(pfc_s_mean_base ~ 1 + fu_v_baseOmit, data = all_data_FvBO)
+Anova(base_pfcs_full_fvbo, type = "III")
+emmeans(base_pfcs_full_fvbo, "fu_v_baseOmit")
+pairs(emmeans(base_pfcs_full_fvbo, "fu_v_baseOmit"))
+```
+
