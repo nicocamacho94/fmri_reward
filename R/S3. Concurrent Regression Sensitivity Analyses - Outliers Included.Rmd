@@ -24,7 +24,7 @@ library(miceadds)
 
 # Load dataset
 ```{r, message = FALSE}
-base_data <- read_csv("final_dataset_share.csv") %>% 
+base_data <- read_csv("final_share_dataset.csv") %>% 
   filter(base_sample == 1) %>%
   dplyr::select(., subj, fam_code, z_child_age_base, z_pfc_s_mean_base, z_bdi_mean_base, 
                 contains("avg") & contains("z_"), contains("RvN") & contains("z_"),
@@ -40,7 +40,6 @@ restrict_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_
 summary(restrict_lm)
 ```
 
-
 ## Left Amygdala
 ```{r}
 # run full model
@@ -54,6 +53,21 @@ summary(rln_lamyg_lm) # divide fMRI predictor p-value by 2 given one-sided hypot
 confint(rln_lamyg_lm, level = 0.90) # consider only upper limit for 95% confidence that estimate is < 0
 .07953 - .0587 # R^2 change
 glance(rln_lamyg_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Right Amygdala
+```{r}
+# run full model
+rln_ramyg_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_RAmyg, cluster = "fam_code", data = base_data)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_ramyg_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_RAmyg, data = base_data)
+# view results
+summary(rln_ramyg_lm)
+confint(rln_ramyg_lm)
+.05943 - .0587 # R^2 change
+glance(rln_ramyg_lm_noClust)$adj.r.squared # adjusted R^2
 ```
 
 ## Left Caudate
@@ -127,6 +141,26 @@ plot_rln_lamyg_lm <- rln_lamyg_resid %>%
 plot_rln_lamyg_lm
 ```
 
+## Right Amygdala
+```{r, message = F}
+rln_ramyg_pfcs <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rln_ramyg_brn <- lm(z_avgRLvN_HO_RAmyg ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
+rln_ramyg_resid <- data.frame(base_data$subj, rln_ramyg_pfcs$residuals, rln_ramyg_brn$residuals,
+                              base_data$dfbo_rln_ramyg_base) %>% 
+  rename(pfcs_resid = rln_ramyg_pfcs.residuals, brn_resid = rln_ramyg_brn.residuals,
+         dfbo_rln_ramyg = base_data.dfbo_rln_ramyg_base) %>% 
+  mutate(dfbo_rln_ramyg_col = case_when(dfbo_rln_ramyg == 0 ~ "black",
+                                        dfbo_rln_ramyg == 1 ~ "red"))
+plot_rln_ramyg_lm <- rln_ramyg_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(color = factor(rln_ramyg_resid$dfbo_rln_ramyg_col)) +
+  geom_smooth(method = "lm") + 
+  xlab("Baseline RLvN (z-score residuals)") + ylab("Baseline PFC-S Scores (z-score residuals)") +
+  theme_classic() +
+  theme(legend.position = "none")
+plot_rln_ramyg_lm
+```
+
 ## Left Caudate
 ```{r, message = F}
 rn_lcaud_pfcs <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, data = base_data)
@@ -186,26 +220,5 @@ plot_rn_RmPFC_lm <- rn_RmPFC_resid %>%
   theme(legend.position = "none")
 plot_rn_RmPFC_lm
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

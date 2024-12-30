@@ -26,7 +26,7 @@ library(gridExtra)
 
 # Load dataset
 ```{r, message = FALSE}
-base_dfbo <- read_csv("final_dataset_share.csv") %>% 
+base_dfbo <- read_csv("final_share_dataset.csv") %>% 
   filter(base_sample == 1) %>%
   dplyr::select(., subj, fam_code, z_child_age_base, z_pfc_s_mean_base, z_bdi_mean_base, 
                 contains("avg") & contains("z_"), contains("RvN") & contains("z_"),
@@ -54,6 +54,26 @@ confint(rln_lamyg_lm, level = 0.90) # consider only upper limit for 95% confiden
 .07439 - .04671 # R^2 change
 glance(rln_lamyg_lm_noClust)$adj.r.squared # adjusted R^2
 partial_f2(t_statistic = -2.22016770, dof = 103) # effect size specific to fMRI predictor
+```
+
+## Right Amygdala
+```{r}
+# remove DFBETA outliers for this model
+rln_ramyg_df <- base_dfbo %>% filter(dfbo_rln_ramyg_base == 0)
+# run restricted and full models
+restrict_ramyg_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                        cluster = "fam_code", data = rln_ramyg_df)
+rln_ramyg_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_RAmyg, cluster = "fam_code", data = rln_ramyg_df)
+# run full model without cluster robust SE's to retrieve adjusted R^2
+rln_ramyg_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_avgRLvN_HO_RAmyg, data = rln_ramyg_df)
+# view results
+summary(restrict_ramyg_lm)
+summary(rln_ramyg_lm)
+confint(rln_ramyg_lm)
+.03559 - .03468 # R^2 change
+glance(rln_ramyg_lm_noClust)$adj.r.squared # adjusted R^2
 ```
 
 ## Left Caudate
@@ -138,6 +158,24 @@ plot_rln_lamyg_lm <- rln_lamyg_resid %>%
   theme_classic(base_size = 11, base_family = "serif") +
   theme(axis.title.x = element_text(face = "bold"))
 plot_rln_lamyg_lm
+```
+
+## Right Amygdala
+```{r, message = F, fig.height=2.75, fig.width=2.5}
+rln_ramyg_pfcs <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                             cluster = "fam_code", data = rln_ramyg_df)
+rln_ramyg_brn <- lm.cluster(z_avgRLvN_HO_RAmyg ~ 1 + z_child_age_base + z_bdi_mean_base, 
+                            cluster = "fam_code", data = rln_ramyg_df)
+rln_ramyg_resid <- data.frame(rln_ramyg_pfcs$lm_res$residuals, rln_ramyg_brn$lm_res$residuals) %>% 
+  rename(pfcs_resid = rln_ramyg_pfcs.lm_res.residuals, brn_resid = rln_ramyg_brn.lm_res.residuals)
+plot_rln_ramyg_lm <- rln_ramyg_resid %>% 
+  ggplot(aes(x = brn_resid, y = pfcs_resid)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", linewidth = 1.5) + 
+  xlab("Right Amygdala\nSalience Reactivity") + ylab("") +
+  theme_classic(base_size = 11, base_family = "serif") +
+  theme(axis.title.x = element_text(face = "bold"))
+plot_rln_ramyg_lm
 ```
 
 ## Left Caudate

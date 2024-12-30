@@ -18,7 +18,7 @@ library(tidyverse)
 
 # Load dataset, retain variables of interest (standardized), and split into baseline and follow-up samples
 ```{r, message = FALSE}
-all_data <- read_csv("final_dataset_share.csv")
+all_data <- read_csv("final_share_dataset.csv")
 
 base_data <- all_data %>% 
   filter(base_sample == 1) %>% 
@@ -49,6 +49,21 @@ base_dfbo <- base_data %>% dplyr::select(., subj) %>%
   mutate(dfbo_rln_lamyg_base = if_else(abs(dfb_rln_lamyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
   dplyr::select(., -dfb_rln_lamyg_base) %>% 
   left_join(base_data, ., by = "subj")
+```
+
+### Right Amygdala
+```{r}
+# Run the model
+rln_ramyg_base <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                  z_avgRLvN_HO_RAmyg, data = base_data)
+# Identify & save column identifying DFBETA outliers
+base_dfbo <- base_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rln_ramyg_base))) %>% 
+  rename(., dfb_rln_ramyg_base = z_avgRLvN_HO_RAmyg) %>%
+  dplyr::select(., subj, dfb_rln_ramyg_base) %>% 
+  mutate(dfbo_rln_ramyg_base = if_else(abs(dfb_rln_ramyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rln_ramyg_base) %>% 
+  left_join(base_dfbo, ., by = "subj")
 ```
 
 ### Left Caudate
@@ -113,6 +128,21 @@ fu_dfbo <- fu_data %>% dplyr::select(., subj) %>%
   left_join(fu_data, ., by = "subj")
 ```
 
+### Right Amygdala
+```{r}
+# Run the model
+rln_ramyg_fu <- lm(z_pfc_s_mean_fu ~ 1 + z_child_age_fu + z_bdi_mean_fu + 
+                    z_avgRLvN_HO_RAmyg, data = fu_data)
+# Identify & save column identifying DFBETA outliers
+fu_dfbo <- fu_dfbo %>% dplyr::select(., subj) %>%
+  bind_cols(., data.frame(dfbetas(rln_ramyg_fu))) %>% 
+  rename(., dfb_rln_ramyg_fu = z_avgRLvN_HO_RAmyg) %>%
+  dplyr::select(., subj, dfb_rln_ramyg_fu) %>% 
+  mutate(dfbo_rln_ramyg_fu = if_else(abs(dfb_rln_ramyg_fu) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -dfb_rln_ramyg_fu) %>% 
+  left_join(fu_dfbo, ., by = "subj")
+```
+
 ### Left Caudate
 ```{r}
 # Run the model
@@ -164,6 +194,7 @@ fu_dfbo <- fu_dfbo %>% dplyr::select(., subj) %>%
 ```{r}
 base_dfbo %>% 
   summarise(n_rln_lamyg = sum(.$dfbo_rln_lamyg_base),
+            n_rln_ramyg = sum(.$dfbo_rln_ramyg_base),
             n_rn_lcaud = sum(.$dfbo_rn_lcaud_base),
             n_rn_rcaud = sum(.$dfbo_rn_rcaud_base),
             n_rn_RmPFC = sum(.$dfbo_rn_RmPFC_base))
@@ -173,16 +204,21 @@ base_dfbo %>%
 ```{r}
 fu_dfbo %>% 
   summarise(n_rln_lamyg = sum(.$dfbo_rln_lamyg_fu),
+            n_rln_ramyg = sum(.$dfbo_rln_ramyg_fu),
             n_rn_lcaud = sum(.$dfbo_rn_lcaud_fu),
             n_rn_rcaud = sum(.$dfbo_rn_rcaud_fu),
             n_rn_RmPFC = sum(.$dfbo_rn_RmPFC_fu))
 ```
 
-# Save dataframes for regression analyses
+# Save dataframe for regression analyses
 ```{r}
-write.csv(base_dfbo, file = "final_baseline_dfbo.csv", row.names = FALSE)
-write.csv(fu_dfbo, file = "final_followup_dfbo.csv", row.names = FALSE)
+all_data <- base_dfbo %>% dplyr::select(., subj, dfbo_rln_ramyg_base) %>% 
+  left_join(all_data, ., by = "subj") %>% 
+  relocate(dfbo_rln_ramyg_base, .after = dfbo_rln_lamyg_base)
+
+all_data <- fu_dfbo %>% dplyr::select(., subj, dfbo_rln_ramyg_fu) %>% 
+  left_join(all_data, ., by = "subj") %>% 
+  relocate(dfbo_rln_ramyg_fu, .after = dfbo_rln_lamyg_fu)
+
+write.csv(all_data, file = "final_share_dataset.csv", row.names = FALSE)
 ```
-
-
-

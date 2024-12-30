@@ -21,7 +21,7 @@ library(emmeans)
 
 # Load dataset, retain only demographics data, then separate into baseline & follow-up samples
 ```{r, message = FALSE}
-all_data <- read_csv("final_dataset_share.csv") %>% 
+all_data <- read_csv("final_share_dataset.csv") %>% 
   dplyr::select(., subj:ocd_past_base, pfc_s_mean_base) %>% 
   mutate_at(c("child_sex", "child_race", "child_hisp",
               "reporter_base", "reporter_fu"), as_factor)
@@ -34,7 +34,7 @@ fu_data <- base_data %>% filter(., fu_sample == 1)
 # Summarize demographics for baseline sample
 ```{r}
 base_summary <- base_data %>% 
-  summarize(
+  dplyr::summarize(
     cnt_male = sum(child_sex == "male"),
     perc_male = (sum(child_sex == "male")/length(child_sex))*100,
     
@@ -124,7 +124,7 @@ base_summary
 # Summarize demographics for follow-up sample
 ```{r}
 fu_summary <- fu_data %>% 
-  summarize(
+  dplyr::summarize(
     cnt_male = sum(child_sex == "male"),
     perc_male = (sum(child_sex == "male")/length(child_sex))*100,
     

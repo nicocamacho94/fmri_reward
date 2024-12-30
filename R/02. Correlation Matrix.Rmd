@@ -22,7 +22,7 @@ library(apaTables)
 
 # Load dataset and split into baseline sample
 ```{r, message = FALSE}
-trunc_data <- read_csv("final_dataset_share.csv") %>% 
+trunc_data <- read_csv("final_share_dataset.csv") %>% 
   dplyr::select(., subj, base_sample, child_sex, contains("age"), contains("i2n"), 
                 months_bw_visits, contains("pfc_s") & contains("mean"), 
                 contains("bdi") & contains("mean"), contains("avg"), contains("RvN")) %>% 
@@ -43,7 +43,7 @@ correl_mtx <- rcorr(as.matrix(dplyr::select(base_data, -c(subj))), type = "pears
 # Establish names of rows/columns to be shown on heat map
 var_names <- c("Sex", "Age (T1)", "Age (T2)", "ItN (T1)", "ItN (T2)", "Months bw Visits",
                "PFC-S (T1)", "PFC-S (T2)", "BDI-II (T1)", "BDI-II (T2)", "RLvN L Amygdala",
-               "RvN L Caudate", "RvN R Caudate", "RvN R mPFC")
+               "RLvN R Amygdala", "RvN L Caudate", "RvN R Caudate", "RvN R mPFC")
 
 # Update the correlation matrix rows and names
 row.names(correl_mtx$r) <- var_names

@@ -22,7 +22,7 @@ library(gghalves)
 
 # Load dataset
 ```{r, message = FALSE}
-base_data <- read_csv("final_dataset_share.csv") %>% 
+base_data <- read_csv("final_share_dataset.csv") %>% 
   filter(base_sample == 1) %>% 
   dplyr::select(., subj, contains("2018"), contains("2021"), contains("_HO_"))
 ```
@@ -39,8 +39,10 @@ base_long <- base_data %>%
          roi = factor(case_when(str_detect(condition_roi, "LCaud") ~ "lcaud",
                          str_detect(condition_roi, "RCaud") ~ "rcaud",
                          str_detect(condition_roi, "LAmyg") ~ "lamyg",
+                         str_detect(condition_roi, "RAmyg") ~ "ramyg",
                          str_detect(condition_roi, "RmPFC") ~ "rmpfc"),
-                      labels = c("Left Amygdala", "Left Caudate", "Right mPFC", "Right Caudate"))) %>% 
+                      labels = c("Left Amygdala", "Left Caudate", "Right Amygdala",
+                                 "Right Caudate", "Right mPFC"))) %>% 
   relocate(., c(condition, roi), .after = condition_roi)
 # establish unweighted effects coding
 contrasts(base_long$condition) <- contr.sum
@@ -98,8 +100,10 @@ base_long_2 <- base_data %>%
          roi = factor(case_when(str_detect(condition_roi, "LCaud") ~ "lcaud",
                                 str_detect(condition_roi, "RCaud") ~ "rcaud",
                                 str_detect(condition_roi, "LAmyg") ~ "lamyg",
+                                str_detect(condition_roi, "RAmyg") ~ "ramyg",
                                 str_detect(condition_roi, "RmPFC") ~ "rmpfc"), 
-                      labels = c("Left Amygdala", "Left Caudate", "Right mPFC", "Right Caudate"))) %>% 
+                      labels = c("Left Amygdala", "Left Caudate", "Right Amygdala", 
+                                 "Right Caudate", "Right mPFC"))) %>% 
   relocate(., c(condition, roi), .after = condition_roi)
 ```
 
