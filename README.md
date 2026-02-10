@@ -1,6 +1,16 @@
 # Early childhood neural reward-related reactivity concurrently and prospectivley associates with depressive symptom severity
 
-### This repo contains the scripts in R that were used to conduct the primary analyses for this project. 
+## Preprint
+
+### The preprint associated with this repo can be found here: https://doi.org/10.31234/osf.io/sq93e_v2
+
+## Published Journal Article
+
+### The published journal article associated with this repo can be found here: https://doi.org/10.1016/j.jad.2026.121328
+
+## This Repository
+
+### This repo contains the scripts in R that were used to conduct the primary analyses for this project.
 
 ### In addition, you will find a de-identified dataset used to complete the primary analyses.
 
