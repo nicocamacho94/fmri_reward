@@ -1,0 +1,897 @@
+---
+title: "S5. Concurrent Regression Analyses - Raw Condition Contrasts"
+author: "Nicolas L. Camacho"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set working directory
+knitr::opts_knit$set(root.dir = "C:/Users/nicol/Box/fMRI Reward/")
+```
+
+# Load packages
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(broom)
+library(sensemakr)
+library(lm.beta)
+library(miceadds)
+```
+
+# Load dataset
+```{r, message = FALSE}
+base_data <- read_csv("final_share_dataset.csv") %>% 
+  filter(base_sample == 1) %>% 
+  dplyr::select(subj, z_child_age_base, z_bdi_mean_base, fam_code, z_pfc_s_mean_base,
+                N_2018_LCaud, N_2018_RCaud, N_2021_RmPFC,
+                R_2018_LCaud, R_2018_RCaud, R_2021_RmPFC,
+                N_HO_LAmyg, L_HO_LAmyg, R_HO_LAmyg,
+                N_HO_RAmyg, L_HO_RAmyg, R_HO_RAmyg) %>% 
+  transmute(subj, z_child_age_base, z_bdi_mean_base, fam_code, z_pfc_s_mean_base,
+            z_N_2018_LCaud = (N_2018_LCaud-mean(N_2018_LCaud))/sd(N_2018_LCaud),
+            z_R_2018_LCaud = (R_2018_LCaud-mean(R_2018_LCaud))/sd(R_2018_LCaud),
+            z_N_2018_RCaud = (N_2018_RCaud-mean(N_2018_RCaud))/sd(N_2018_RCaud),
+            z_R_2018_RCaud = (R_2018_RCaud-mean(R_2018_RCaud))/sd(R_2018_RCaud),
+            z_N_2021_RmPFC = (N_2021_RmPFC-mean(N_2021_RmPFC))/sd(N_2021_RmPFC),
+            z_R_2021_RmPFC = (R_2021_RmPFC-mean(R_2021_RmPFC))/sd(R_2021_RmPFC),
+            z_N_HO_LAmyg = (N_HO_LAmyg - mean(N_HO_LAmyg))/sd(N_HO_LAmyg),
+            z_L_HO_LAmyg = (L_HO_LAmyg - mean(L_HO_LAmyg))/sd(L_HO_LAmyg),
+            z_R_HO_LAmyg = (R_HO_LAmyg - mean(R_HO_LAmyg))/sd(R_HO_LAmyg),
+            z_N_HO_RAmyg = (N_HO_RAmyg - mean(N_HO_RAmyg))/sd(N_HO_RAmyg),
+            z_L_HO_RAmyg = (L_HO_RAmyg - mean(L_HO_RAmyg))/sd(L_HO_RAmyg),
+            z_R_HO_RAmyg = (R_HO_RAmyg - mean(R_HO_RAmyg))/sd(R_HO_RAmyg))
+```
+
+# Run regression analyses (covariates: child age and parent BDI-II; clusters: according to family code; with and without outliers)
+
+## Left Amygdala
+
+### Reward
+```{r}
+# identify outliers
+dfbo_r_lamyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_HO_LAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_r_lamyg_lm))) %>% 
+  rename(., dfb_r_lamyg_base = z_R_HO_LAmyg) %>% 
+  dplyr::select(., subj, dfb_r_lamyg_base) %>% 
+  mutate(dfbo_r_lamyg_base = if_else(abs(dfb_r_lamyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_r_lamyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_r_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_r_lamyg_base == 0))
+r_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_LAmyg, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_r_lamyg_base == 0))
+r_lamyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_LAmyg, 
+                               data = dplyr::filter(base_dfbo, dfbo_r_lamyg_base == 0))
+summary(restrict_r_lamyg_noOut_lm)
+summary(r_lamyg_noOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(r_lamyg_noOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.06744 - 0.04284 # R^2 change
+glance(r_lamyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = 2.6953746, dof = 105)
+
+# run model with outliers
+restrict_r_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+r_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_LAmyg, 
+                               cluster = "fam_code", data = base_data)
+r_lamyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_LAmyg, 
+                               data = base_data)
+summary(restrict_r_lamyg_withOut_lm)
+summary(r_lamyg_withOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(r_lamyg_withOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.06424 - 0.0587 # R^2 change
+glance(r_lamyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Loss
+```{r}
+# identify outliers
+dfbo_l_lamyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_L_HO_LAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_l_lamyg_lm))) %>% 
+  rename(., dfb_l_lamyg_base = z_L_HO_LAmyg) %>% 
+  dplyr::select(., subj, dfb_l_lamyg_base) %>% 
+  mutate(dfbo_l_lamyg_base = if_else(abs(dfb_l_lamyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_l_lamyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_l_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_l_lamyg_base == 0))
+l_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_LAmyg, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_l_lamyg_base == 0))
+l_lamyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_LAmyg, 
+                               data = dplyr::filter(base_dfbo, dfbo_l_lamyg_base == 0))
+summary(restrict_l_lamyg_noOut_lm)
+summary(l_lamyg_noOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(l_lamyg_noOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.05918 - 0.05917 # R^2 change
+glance(l_lamyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_l_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+l_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_LAmyg, 
+                               cluster = "fam_code", data = base_data)
+l_lamyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_LAmyg, 
+                               data = base_data)
+summary(restrict_l_lamyg_withOut_lm)
+summary(l_lamyg_withOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(l_lamyg_withOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.06604 - 0.0587 # R^2 change
+glance(l_lamyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Neutral
+```{r}
+# identify outliers
+dfbo_n_lamyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_N_HO_LAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_n_lamyg_lm))) %>% 
+  rename(., dfb_n_lamyg_base = z_N_HO_LAmyg) %>% 
+  dplyr::select(., subj, dfb_n_lamyg_base) %>% 
+  mutate(dfbo_n_lamyg_base = if_else(abs(dfb_n_lamyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_n_lamyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_n_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_n_lamyg_base == 0))
+
+n_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_LAmyg, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_n_lamyg_base == 0))
+n_lamyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_LAmyg, 
+                               data = dplyr::filter(base_dfbo, dfbo_n_lamyg_base == 0))
+summary(restrict_n_lamyg_noOut_lm)
+summary(n_lamyg_noOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(n_lamyg_noOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.09896 - 0.07444 # R^2 change
+glance(n_lamyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = 2.3690067, dof = 106)
+
+# run model with outliers
+restrict_n_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+n_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_LAmyg, 
+                               cluster = "fam_code", data = base_data)
+n_lamyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_LAmyg, 
+                               data = base_data)
+summary(restrict_n_lamyg_withOut_lm)
+summary(n_lamyg_withOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(n_lamyg_withOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.06793 - 0.0587 # R^2 change
+glance(n_lamyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### All conditions included at once
+```{r}
+# identify outliers
+dfbo_rln_lamyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_HO_LAmyg + z_L_HO_LAmyg + z_N_HO_LAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_rln_lamyg_lm))) %>% 
+  rename(., dfb_r_lamyg_base = z_R_HO_LAmyg,
+         dfb_l_lamyg_base = z_L_HO_LAmyg,
+         dfb_n_lamyg_base = z_N_HO_LAmyg) %>% 
+  dplyr::select(., subj, dfb_r_lamyg_base, dfb_l_lamyg_base, dfb_n_lamyg_base) %>% 
+  mutate(dfbo_rln_lamyg_base = if_else(abs(dfb_r_lamyg_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_l_lamyg_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_n_lamyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -c(dfb_r_lamyg_base, dfb_l_lamyg_base, dfb_n_lamyg_base)) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_rln_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                            z_bdi_mean_base, cluster = "fam_code",
+                                          data = dplyr::filter(base_dfbo, dfbo_rln_lamyg_base == 0))
+
+rln_lamyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_HO_LAmyg +
+                                   z_L_HO_LAmyg + z_N_HO_LAmyg, 
+                                 cluster = "fam_code",
+                                 data = dplyr::filter(base_dfbo, dfbo_rln_lamyg_base == 0))
+rln_lamyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_HO_LAmyg + 
+                                   z_L_HO_LAmyg + z_N_HO_LAmyg,
+                                 data = dplyr::filter(base_dfbo, dfbo_rln_lamyg_base == 0))
+summary(restrict_rln_lamyg_noOut_lm)
+summary(rln_lamyg_noOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(rln_lamyg_noOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.11768 - 0.05862 # R^2 change
+glance(rln_lamyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -1.82, dof = 98)
+partial_f2(t_statistic = 2.19, dof = 98)
+
+# run model with outliers
+restrict_rln_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                              z_bdi_mean_base, cluster = "fam_code",
+                                            data = base_data)
+rln_lamyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                     z_bdi_mean_base + z_R_HO_LAmyg +
+                                     z_L_HO_LAmyg + z_N_HO_LAmyg,
+                                   cluster = "fam_code", data = base_data)
+rln_lamyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                     z_bdi_mean_base + z_R_HO_LAmyg +
+                                     z_L_HO_LAmyg + z_N_HO_LAmyg,
+                                   data = base_data)
+summary(restrict_rln_lamyg_withOut_lm)
+summary(rln_lamyg_withOut_lm) # divide fMRI predictor p-value by 2 given one-sided hypothesis
+confint(rln_lamyg_withOut_lm, level = 0.90) # consider only upper limit for 95% CI
+0.09883 - 0.0587 # R^2 change
+glance(rln_lamyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -1.94, dof = 108)
+```
+
+## Right Amygdala
+
+### Reward
+```{r}
+# identify outliers
+dfbo_r_ramyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_HO_RAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_r_ramyg_lm))) %>% 
+  rename(., dfb_r_ramyg_base = z_R_HO_RAmyg) %>% 
+  dplyr::select(., subj, dfb_r_ramyg_base) %>% 
+  mutate(dfbo_r_ramyg_base = if_else(abs(dfb_r_ramyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_r_ramyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_r_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_r_ramyg_base == 0))
+r_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_RAmyg, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_r_ramyg_base == 0))
+r_ramyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_RAmyg, 
+                               data = dplyr::filter(base_dfbo, dfbo_r_ramyg_base == 0))
+summary(restrict_r_ramyg_noOut_lm)
+summary(r_ramyg_noOut_lm)
+confint(r_ramyg_noOut_lm, level = 0.95)
+0.08084 - 0.08075 # R^2 change
+glance(r_ramyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_r_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+r_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_RAmyg, 
+                               cluster = "fam_code", data = base_data)
+r_ramyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_HO_RAmyg, 
+                               data = base_data)
+summary(restrict_r_ramyg_withOut_lm)
+summary(r_ramyg_withOut_lm)
+confint(r_ramyg_withOut_lm, level = 0.95)
+0.05884 - 0.0587 # R^2 change
+glance(r_ramyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Loss
+```{r}
+# identify outliers
+dfbo_l_ramyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_L_HO_RAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_l_ramyg_lm))) %>% 
+  rename(., dfb_l_ramyg_base = z_L_HO_RAmyg) %>% 
+  dplyr::select(., subj, dfb_l_ramyg_base) %>% 
+  mutate(dfbo_l_ramyg_base = if_else(abs(dfb_l_ramyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_l_ramyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_l_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_l_ramyg_base == 0))
+l_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_RAmyg, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_l_ramyg_base == 0))
+l_ramyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_RAmyg, 
+                               data = dplyr::filter(base_dfbo, dfbo_l_ramyg_base == 0))
+summary(restrict_l_ramyg_noOut_lm)
+summary(l_ramyg_noOut_lm)
+confint(l_ramyg_noOut_lm, level = 0.95)
+0.06391 - 0.06365 # R^2 change
+glance(l_ramyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_l_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+l_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_RAmyg, 
+                               cluster = "fam_code", data = base_data)
+l_ramyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_L_HO_RAmyg, 
+                               data = base_data)
+summary(restrict_l_ramyg_withOut_lm)
+summary(l_ramyg_withOut_lm)
+confint(l_ramyg_withOut_lm, level = 0.95)
+0.05874 - 0.0587 # R^2 change
+glance(l_ramyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Neutral
+```{r}
+# identify outliers
+dfbo_n_ramyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_N_HO_RAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_n_ramyg_lm))) %>% 
+  rename(., dfb_n_ramyg_base = z_N_HO_RAmyg) %>% 
+  dplyr::select(., subj, dfb_n_ramyg_base) %>% 
+  mutate(dfbo_n_ramyg_base = if_else(abs(dfb_n_ramyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_n_ramyg_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_n_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_n_ramyg_base == 0))
+
+n_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_RAmyg, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_n_ramyg_base == 0))
+n_ramyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_RAmyg, 
+                               data = dplyr::filter(base_dfbo, dfbo_n_ramyg_base == 0))
+summary(restrict_n_ramyg_noOut_lm)
+summary(n_ramyg_noOut_lm)
+confint(n_ramyg_noOut_lm, level = 0.95)
+0.03766 - 0.03222 # R^2 change
+glance(n_ramyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_n_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+n_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_RAmyg, 
+                               cluster = "fam_code", data = base_data)
+n_ramyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_HO_RAmyg, 
+                               data = base_data)
+summary(restrict_n_ramyg_withOut_lm)
+summary(n_ramyg_withOut_lm)
+confint(n_ramyg_withOut_lm, level = 0.95)
+0.05879 - 0.0587 # R^2 change
+glance(n_ramyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### All conditions included at once
+```{r}
+# identify outliers
+dfbo_rln_ramyg_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_HO_RAmyg + z_L_HO_RAmyg + z_N_HO_RAmyg, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_rln_ramyg_lm))) %>% 
+  rename(., dfb_r_ramyg_base = z_R_HO_RAmyg,
+         dfb_l_ramyg_base = z_L_HO_RAmyg,
+         dfb_n_ramyg_base = z_N_HO_RAmyg) %>% 
+  dplyr::select(., subj, dfb_r_ramyg_base, dfb_l_ramyg_base, dfb_n_ramyg_base) %>% 
+  mutate(dfbo_rln_ramyg_base = if_else(abs(dfb_r_ramyg_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_l_ramyg_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_n_ramyg_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -c(dfb_r_ramyg_base, dfb_l_ramyg_base, dfb_n_ramyg_base)) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_rln_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                            z_bdi_mean_base, cluster = "fam_code",
+                                          data = dplyr::filter(base_dfbo, dfbo_rln_ramyg_base == 0))
+
+rln_ramyg_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_HO_RAmyg +
+                                   z_L_HO_RAmyg + z_N_HO_RAmyg, 
+                                 cluster = "fam_code",
+                                 data = dplyr::filter(base_dfbo, dfbo_rln_ramyg_base == 0))
+rln_ramyg_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_HO_RAmyg + 
+                                   z_L_HO_RAmyg + z_N_HO_RAmyg,
+                                 data = dplyr::filter(base_dfbo, dfbo_rln_ramyg_base == 0))
+summary(restrict_rln_ramyg_noOut_lm)
+summary(rln_ramyg_noOut_lm)
+confint(rln_ramyg_noOut_lm, level = 0.95)
+0.04476 - 0.04221 # R^2 change
+glance(rln_ramyg_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_rln_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                              z_bdi_mean_base, cluster = "fam_code",
+                                            data = base_data)
+rln_ramyg_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                     z_bdi_mean_base + z_R_HO_RAmyg +
+                                     z_L_HO_RAmyg + z_N_HO_RAmyg,
+                                   cluster = "fam_code", data = base_data)
+rln_ramyg_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                     z_bdi_mean_base + z_R_HO_RAmyg +
+                                     z_L_HO_RAmyg + z_N_HO_RAmyg,
+                                   data = base_data)
+summary(restrict_rln_ramyg_withOut_lm)
+summary(rln_ramyg_withOut_lm)
+confint(rln_ramyg_withOut_lm, level = 0.95)
+0.05952 - 0.0587 # R^2 change
+glance(rln_ramyg_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Left Caudate
+
+### Reward
+```{r}
+# identify outliers
+dfbo_r_lcaud_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_2018_LCaud, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_r_lcaud_lm))) %>% 
+  rename(., dfb_r_lcaud_base = z_R_2018_LCaud) %>% 
+  dplyr::select(., subj, dfb_r_lcaud_base) %>% 
+  mutate(dfbo_r_lcaud_base = if_else(abs(dfb_r_lcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_r_lcaud_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_r_lcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_r_lcaud_base == 0))
+r_lcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_LCaud, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_r_lcaud_base == 0))
+r_lcaud_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_LCaud, 
+                               data = dplyr::filter(base_dfbo, dfbo_r_lcaud_base == 0))
+summary(restrict_r_lcaud_noOut_lm)
+summary(r_lcaud_noOut_lm)
+confint(r_lcaud_noOut_lm, level = 0.95)
+0.08775 - 0.08387 # R^2 change
+glance(r_lcaud_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_r_lcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+r_lcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_LCaud, 
+                               cluster = "fam_code", data = base_data)
+r_lcaud_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_LCaud, 
+                               data = base_data)
+summary(restrict_r_lcaud_withOut_lm)
+summary(r_lcaud_withOut_lm)
+confint(r_lcaud_withOut_lm, level = 0.95)
+0.06067 - 0.0587 # R^2 change
+glance(r_lcaud_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Neutral
+```{r}
+# identify outliers
+dfbo_n_lcaud_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_N_2018_LCaud, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_n_lcaud_lm))) %>% 
+  rename(., dfb_n_lcaud_base = z_N_2018_LCaud) %>% 
+  dplyr::select(., subj, dfb_n_lcaud_base) %>% 
+  mutate(dfbo_n_lcaud_base = if_else(abs(dfb_n_lcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_n_lcaud_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_n_lcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_n_lcaud_base == 0))
+n_lcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_LCaud, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_n_lcaud_base == 0))
+n_lcaud_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_LCaud, 
+                               data = dplyr::filter(base_dfbo, dfbo_n_lcaud_base == 0))
+summary(restrict_n_lcaud_noOut_lm)
+summary(n_lcaud_noOut_lm)
+confint(n_lcaud_noOut_lm, level = 0.95)
+0.03607 - 0.03356 # R^2 change
+glance(n_lcaud_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_n_lcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+n_lcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_LCaud, 
+                               cluster = "fam_code", data = base_data)
+n_lcaud_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_LCaud, 
+                               data = base_data)
+summary(restrict_n_lcaud_withOut_lm)
+summary(n_lcaud_withOut_lm)
+confint(n_lcaud_withOut_lm, level = 0.95)
+0.06086 - 0.0587 # R^2 change
+glance(n_lcaud_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Reward and Neutral included at once
+```{r}
+# identify outliers
+dfbo_rn_lcaud_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_2018_LCaud + z_N_2018_LCaud, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_rn_lcaud_lm))) %>% 
+  rename(., dfb_r_lcaud_base = z_R_2018_LCaud,
+         dfb_n_lcaud_base = z_N_2018_LCaud) %>% 
+  dplyr::select(., subj, dfb_r_lcaud_base, dfb_n_lcaud_base) %>% 
+  mutate(dfbo_rn_lcaud_base = if_else(abs(dfb_r_lcaud_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_n_lcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -c(dfb_r_lcaud_base, dfb_n_lcaud_base)) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_rn_lcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                            z_bdi_mean_base, cluster = "fam_code",
+                                          data = dplyr::filter(base_dfbo, dfbo_rn_lcaud_base == 0))
+
+rn_lcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_2018_LCaud + z_N_2018_LCaud, 
+                                 cluster = "fam_code",
+                                 data = dplyr::filter(base_dfbo, dfbo_rn_lcaud_base == 0))
+rn_lcaud_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_2018_LCaud + z_N_2018_LCaud,
+                                 data = dplyr::filter(base_dfbo, dfbo_rn_lcaud_base == 0))
+summary(restrict_rn_lcaud_noOut_lm)
+summary(rn_lcaud_noOut_lm)
+confint(rn_lcaud_noOut_lm, level = 0.95)
+0.0762 - 0.04236 # R^2 change
+glance(rn_lcaud_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -2.127393, dof = 96)
+
+# run model with outliers
+restrict_rn_lcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                              z_bdi_mean_base, cluster = "fam_code",
+                                            data = base_data)
+rn_lcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                     z_bdi_mean_base + z_R_2018_LCaud + z_N_2018_LCaud,
+                                   cluster = "fam_code", data = base_data)
+rn_lcaud_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                     z_bdi_mean_base + z_R_2018_LCaud + z_N_2018_LCaud,
+                                   data = base_data)
+summary(restrict_rn_lcaud_withOut_lm)
+summary(rn_lcaud_withOut_lm)
+confint(rn_lcaud_withOut_lm, level = 0.95)
+0.07164 - 0.0587 # R^2 change
+glance(rn_lcaud_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Right Caudate
+
+### Reward
+```{r}
+# identify outliers
+dfbo_r_rcaud_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_2018_RCaud, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_r_rcaud_lm))) %>% 
+  rename(., dfb_r_rcaud_base = z_R_2018_RCaud) %>% 
+  dplyr::select(., subj, dfb_r_rcaud_base) %>% 
+  mutate(dfbo_r_rcaud_base = if_else(abs(dfb_r_rcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_r_rcaud_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_r_rcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_r_rcaud_base == 0))
+r_rcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_RCaud, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_r_rcaud_base == 0))
+r_rcaud_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_RCaud, 
+                               data = dplyr::filter(base_dfbo, dfbo_r_rcaud_base == 0))
+summary(restrict_r_rcaud_noOut_lm)
+summary(r_rcaud_noOut_lm)
+confint(r_rcaud_noOut_lm, level = 0.95)
+0.1172 - 0.08776 # R^2 change
+glance(r_rcaud_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -2.13606344, dof = 100)
+
+# run model with outliers
+restrict_r_rcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+r_rcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_RCaud, 
+                               cluster = "fam_code", data = base_data)
+r_rcaud_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2018_RCaud, 
+                               data = base_data)
+summary(restrict_r_rcaud_withOut_lm)
+summary(r_rcaud_withOut_lm)
+confint(r_rcaud_withOut_lm, level = 0.95)
+0.06235 - 0.0587 # R^2 change
+glance(r_rcaud_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Neutral
+```{r}
+# identify outliers
+dfbo_n_rcaud_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_N_2018_RCaud, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_n_rcaud_lm))) %>% 
+  rename(., dfb_n_rcaud_base = z_N_2018_RCaud) %>% 
+  dplyr::select(., subj, dfb_n_rcaud_base) %>% 
+  mutate(dfbo_n_rcaud_base = if_else(abs(dfb_n_rcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_n_rcaud_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_n_rcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_n_rcaud_base == 0))
+n_rcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_RCaud, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_n_rcaud_base == 0))
+n_rcaud_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_RCaud, 
+                               data = dplyr::filter(base_dfbo, dfbo_n_rcaud_base == 0))
+summary(restrict_n_rcaud_noOut_lm)
+summary(n_rcaud_noOut_lm)
+confint(n_rcaud_noOut_lm, level = 0.95)
+0.06394 - 0.0631 # R^2 change
+glance(n_rcaud_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_n_rcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+n_rcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_RCaud, 
+                               cluster = "fam_code", data = base_data)
+n_rcaud_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2018_RCaud, 
+                               data = base_data)
+summary(restrict_n_rcaud_withOut_lm)
+summary(n_rcaud_withOut_lm)
+confint(n_rcaud_withOut_lm, level = 0.95)
+0.06198 - 0.0587 # R^2 change
+glance(n_rcaud_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Reward and Neutral included at once
+```{r}
+# identify outliers
+dfbo_rn_rcaud_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_2018_RCaud + z_N_2018_RCaud, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_rn_rcaud_lm))) %>% 
+  rename(., dfb_r_rcaud_base = z_R_2018_RCaud,
+         dfb_n_rcaud_base = z_N_2018_RCaud) %>% 
+  dplyr::select(., subj, dfb_r_rcaud_base, dfb_n_rcaud_base) %>% 
+  mutate(dfbo_rn_rcaud_base = if_else(abs(dfb_r_rcaud_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_n_rcaud_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -c(dfb_r_rcaud_base, dfb_n_rcaud_base)) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_rn_rcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                            z_bdi_mean_base, cluster = "fam_code",
+                                          data = dplyr::filter(base_dfbo, dfbo_rn_rcaud_base == 0))
+
+rn_rcaud_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_2018_RCaud + z_N_2018_RCaud, 
+                                 cluster = "fam_code",
+                                 data = dplyr::filter(base_dfbo, dfbo_rn_rcaud_base == 0))
+rn_rcaud_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_2018_RCaud + z_N_2018_RCaud,
+                                 data = dplyr::filter(base_dfbo, dfbo_rn_rcaud_base == 0))
+summary(restrict_rn_rcaud_noOut_lm)
+summary(rn_rcaud_noOut_lm)
+confint(rn_rcaud_noOut_lm, level = 0.95)
+0.12059 - 0.05373 # R^2 change
+glance(rn_rcaud_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = -3.20286639, dof = 94)
+partial_f2(t_statistic = 2.604523599, dof = 94)
+
+# run model with outliers
+restrict_rn_rcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                              z_bdi_mean_base, cluster = "fam_code",
+                                            data = base_data)
+rn_rcaud_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                     z_bdi_mean_base + z_R_2018_RCaud + z_N_2018_RCaud,
+                                   cluster = "fam_code", data = base_data)
+rn_rcaud_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                     z_bdi_mean_base + z_R_2018_RCaud + z_N_2018_RCaud,
+                                   data = base_data)
+summary(restrict_rn_rcaud_withOut_lm)
+summary(rn_rcaud_withOut_lm)
+confint(rn_rcaud_withOut_lm, level = 0.95)
+0.07777 - 0.0587 # R^2 change
+glance(rn_rcaud_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+## Right mPFC
+
+### Reward
+```{r}
+# identify outliers
+dfbo_r_rmpfc_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_2021_RmPFC, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_r_rmpfc_lm))) %>% 
+  rename(., dfb_r_rmpfc_base = z_R_2021_RmPFC) %>% 
+  dplyr::select(., subj, dfb_r_rmpfc_base) %>% 
+  mutate(dfbo_r_rmpfc_base = if_else(abs(dfb_r_rmpfc_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_r_rmpfc_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_r_rmpfc_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_r_rmpfc_base == 0))
+r_rmpfc_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2021_RmPFC, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_r_rmpfc_base == 0))
+r_rmpfc_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2021_RmPFC, 
+                               data = dplyr::filter(base_dfbo, dfbo_r_rmpfc_base == 0))
+summary(restrict_r_rmpfc_noOut_lm)
+summary(r_rmpfc_noOut_lm)
+confint(r_rmpfc_noOut_lm, level = 0.95)
+0.04791 - 0.04463 # R^2 change
+glance(r_rmpfc_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_r_rmpfc_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+r_rmpfc_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2021_RmPFC, 
+                               cluster = "fam_code", data = base_data)
+r_rmpfc_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_R_2021_RmPFC, 
+                               data = base_data)
+summary(restrict_r_rmpfc_withOut_lm)
+summary(r_rmpfc_withOut_lm)
+confint(r_rmpfc_withOut_lm, level = 0.95)
+0.05889 - 0.0587 # R^2 change
+glance(r_rmpfc_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Neutral
+```{r}
+# identify outliers
+dfbo_n_rmpfc_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_N_2021_RmPFC, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_n_rmpfc_lm))) %>% 
+  rename(., dfb_n_rmpfc_base = z_N_2021_RmPFC) %>% 
+  dplyr::select(., subj, dfb_n_rmpfc_base) %>% 
+  mutate(dfbo_n_rmpfc_base = if_else(abs(dfb_n_rmpfc_base) < 2/sqrt(length(.$subj)), 0, 1)) %>% 
+  dplyr::select(., -dfb_n_rmpfc_base) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_n_rmpfc_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = dplyr::filter(base_dfbo, dfbo_n_rmpfc_base == 0))
+n_rmpfc_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2021_RmPFC, 
+                               cluster = "fam_code",
+                               data = dplyr::filter(base_dfbo, dfbo_n_rmpfc_base == 0))
+n_rmpfc_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2021_RmPFC, 
+                               data = dplyr::filter(base_dfbo, dfbo_n_rmpfc_base == 0))
+summary(restrict_n_rmpfc_noOut_lm)
+summary(n_rmpfc_noOut_lm)
+confint(n_rmpfc_noOut_lm, level = 0.95)
+0.06019 - 0.04651 # R^2 change
+glance(n_rmpfc_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+
+# run model with outliers
+restrict_n_rmpfc_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                          z_bdi_mean_base, cluster = "fam_code",
+                                        data = base_data)
+n_rmpfc_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2021_RmPFC, 
+                               cluster = "fam_code", data = base_data)
+n_rmpfc_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                 z_bdi_mean_base + z_N_2021_RmPFC, 
+                               data = base_data)
+summary(restrict_n_rmpfc_withOut_lm)
+summary(n_rmpfc_withOut_lm)
+confint(n_rmpfc_withOut_lm, level = 0.95)
+0.0678 - 0.0587 # R^2 change
+glance(n_rmpfc_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+### Reward and Neutral included at once
+```{r}
+# identify outliers
+dfbo_rn_rmpfc_lm <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + z_bdi_mean_base +
+                     z_R_2021_RmPFC + z_N_2021_RmPFC, data = base_data)
+base_dfbo <- base_data %>% dplyr::select(., subj) %>% 
+  bind_cols(., data.frame(dfbetas(dfbo_rn_rmpfc_lm))) %>% 
+  rename(., dfb_r_rmpfc_base = z_R_2021_RmPFC,
+         dfb_n_rmpfc_base = z_N_2021_RmPFC) %>% 
+  dplyr::select(., subj, dfb_r_rmpfc_base, dfb_n_rmpfc_base) %>% 
+  mutate(dfbo_rn_rmpfc_base = if_else(abs(dfb_r_rmpfc_base) < 2/sqrt(length(.$subj)) &
+                                         abs(dfb_n_rmpfc_base) < 2/sqrt(length(.$subj)), 0, 1)) %>%
+  dplyr::select(., -c(dfb_r_rmpfc_base, dfb_n_rmpfc_base)) %>% 
+  left_join(base_data, ., by = "subj")
+
+# run model wihout outliers
+restrict_rn_rmpfc_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                            z_bdi_mean_base, cluster = "fam_code",
+                                          data = dplyr::filter(base_dfbo, dfbo_rn_rmpfc_base == 0))
+
+rn_rmpfc_noOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_2021_RmPFC + z_N_2021_RmPFC, 
+                                 cluster = "fam_code",
+                                 data = dplyr::filter(base_dfbo, dfbo_rn_rmpfc_base == 0))
+rn_rmpfc_noOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                   z_bdi_mean_base + z_R_2021_RmPFC + z_N_2021_RmPFC,
+                                 data = dplyr::filter(base_dfbo, dfbo_rn_rmpfc_base == 0))
+summary(restrict_rn_rmpfc_noOut_lm)
+summary(rn_rmpfc_noOut_lm)
+confint(rn_rmpfc_noOut_lm, level = 0.95)
+0.10384 - 0.05222 # R^2 change
+glance(rn_rmpfc_noOut_lm_noClust)$adj.r.squared # adjusted R^2
+partial_f2(t_statistic = 2.7664034, dof = 99)
+
+# run model with outliers
+restrict_rn_rmpfc_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                              z_bdi_mean_base, cluster = "fam_code",
+                                            data = base_data)
+rn_rmpfc_withOut_lm <- lm.cluster(z_pfc_s_mean_base ~ 1 + z_child_age_base +
+                                     z_bdi_mean_base + z_R_2021_RmPFC + z_N_2021_RmPFC,
+                                   cluster = "fam_code", data = base_data)
+rn_rmpfc_withOut_lm_noClust <- lm(z_pfc_s_mean_base ~ 1 + z_child_age_base + 
+                                     z_bdi_mean_base + z_R_2021_RmPFC + z_N_2021_RmPFC,
+                                   data = base_data)
+summary(restrict_rn_rmpfc_withOut_lm)
+summary(rn_rmpfc_withOut_lm)
+confint(rn_rmpfc_withOut_lm, level = 0.95)
+0.06988 - 0.0587 # R^2 change
+glance(rn_rmpfc_withOut_lm_noClust)$adj.r.squared # adjusted R^2
+```
+
+
